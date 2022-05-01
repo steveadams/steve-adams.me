@@ -7,7 +7,7 @@ ENV NODE_ENV production
 # Install all node_modules, including dev dependencies
 FROM base as deps
 
-WORKDIR /myapp
+WORKDIR /steve-adams.me
 
 ADD package.json package-lock.json ./
 RUN npm install --production=false
@@ -15,18 +15,18 @@ RUN npm install --production=false
 # Setup production node_modules
 FROM base as production-deps
 
-WORKDIR /myapp
+WORKDIR /steve-adams.me
 
-COPY --from=deps /myapp/node_modules /myapp/node_modules
+COPY --from=deps /steve-adams.me/node_modules /steve-adams.me/node_modules
 ADD package.json package-lock.json ./
 RUN npm prune --production
 
 # Build the app
 FROM base as build
 
-WORKDIR /myapp
+WORKDIR /steve-adams.me
 
-COPY --from=deps /myapp/node_modules /myapp/node_modules
+COPY --from=deps /steve-adams.me/node_modules /steve-adams.me/node_modules
 
 ADD . .
 RUN npm run build
@@ -37,12 +37,12 @@ FROM base
 ENV PORT="8080"
 ENV NODE_ENV="production"
 
-WORKDIR /myapp
+WORKDIR /steve-adams.me
 
-COPY --from=production-deps /myapp/node_modules /myapp/node_modules
+COPY --from=production-deps /steve-adams.me/node_modules /steve-adams.me/node_modules
 
-COPY --from=build /myapp/build /myapp/build
-COPY --from=build /myapp/public /myapp/public
+COPY --from=build /steve-adams.me/build /steve-adams.me/build
+COPY --from=build /steve-adams.me/public /steve-adams.me/_static
 ADD . .
 
 CMD ["npm", "start"]
