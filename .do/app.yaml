@@ -1,0 +1,9 @@
+name: steve-adams.me
+services:
+  - build_command: npm run build
+    environment_slug: node-js
+    github:
+      branch: main
+      deploy_on_push: true
+      repo: steveadams/steve-adams.me
+    name: steve-adams.me
