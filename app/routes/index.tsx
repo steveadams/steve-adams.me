@@ -1,4 +1,20 @@
 import { IconAt, IconInfoCircle } from "@tabler/icons";
+import type { FC } from "react";
+import type React from "react";
+
+const Link: FC<React.HTMLProps<HTMLAnchorElement>> = ({
+  children,
+  ...props
+}) => (
+  <a
+    className="flex items-center gap-x-1.5 rounded-xl bg-gradient-to-r from-blue-500 to-indigo-500 py-2 px-3 text-white/90 no-underline hover:bg-blue-500 hover:from-blue-600 hover:to-indigo-600 hover:text-white active:bg-blue-600 active:from-blue-700 active:to-indigo-700"
+    {...props}
+    rel="noreferrer"
+    target="_blank"
+  >
+    {children}
+  </a>
+);
 
 export default function Index() {
   return (
@@ -46,25 +62,15 @@ export default function Index() {
 
         <ul className="mx-auto my-16 flex w-fit grow-0 list-none justify-center gap-x-3 rounded-xl bg-white px-4 py-3 dark:bg-black/25">
           <li>
-            <a
-              className="flex items-center gap-x-1.5 rounded-xl bg-gradient-to-r from-blue-500 to-indigo-500 py-2 px-3 text-white/90 no-underline hover:bg-blue-500 hover:from-blue-600 hover:to-indigo-600 hover:text-white"
-              href="mailto:steve@steve-adams.me"
-              rel="noreferrer"
-              target="_blank"
-            >
+            <Link href="mailto:steve@steve-adams.me">
               <IconAt className="h-5 w-5" stroke={1.5} /> Email me
-            </a>
+            </Link>
           </li>
           <li>
-            <a
-              className="flex items-center gap-x-1.5 rounded-xl bg-gradient-to-r from-blue-500 to-indigo-500 py-2 px-3 text-white/90 no-underline hover:bg-blue-500 hover:from-blue-600 hover:to-indigo-600 hover:text-white"
-              href="https://standardresume.co/r/steveadams"
-              rel="noreferrer"
-              target="_blank"
-            >
+            <Link href="https://standardresume.co/r/steveadams">
               <IconInfoCircle className="h-5 w-5" stroke={1.5} /> Check out my
               CV &rarr;
-            </a>
+            </Link>
           </li>
         </ul>
       </div>
