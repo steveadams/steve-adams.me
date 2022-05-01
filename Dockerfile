@@ -42,7 +42,7 @@ WORKDIR /steve-adams.me
 COPY --from=production-deps /steve-adams.me/node_modules /steve-adams.me/node_modules
 
 COPY --from=build /steve-adams.me/build /steve-adams.me/build
-COPY --from=build /steve-adams.me/public /steve-adams.me/_static
+COPY --from=build /steve-adams.me/public /steve-adams.me/public
 ADD . .
 
 CMD ["npm", "start"]
