@@ -22,7 +22,6 @@ export default function Index() {
       <figure className="mx-auto mb-12 flex w-full max-w-6xl flex-col items-end gap-2 sm:px-4">
         <picture className="h-64 w-full overflow-hidden shadow-xl sm:h-[320px] sm:rounded-2xl">
           <source media="(max-width: 599px)" srcSet="/img/big_sur-sm.jpeg" />
-          <source media="(max-width: 1120px)" srcSet="/img/big_sur-md.jpeg" />
 
           <img
             alt="A fine sandy beach below rocky, brushy slopes descending from the Cabrillo Highway in Big Sur, California. Thick kelp beds are anchored in the shallows, and a large boulder interjects part way along the smooth beach. Unseen is the Little Sur River emptying into the ocean behind the boulder. Evidence of its presence is seen as fine brown silt gathering near the outfall of the river, whereas the rest of the water is a relatively clear Pacific blue-green. I photographed this in 2016 on a road trip through California with my family."
