@@ -65,7 +65,7 @@ export default function Index() {
             </Link>
           </li>
           <li>
-            <Link href="https://standardresume.co/r/steveadams">
+            <Link href="/cv">
               <IconInfoCircle className="h-5 w-5" stroke={1.5} /> Check out my
               CV &rarr;
             </Link>
