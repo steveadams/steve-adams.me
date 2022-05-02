@@ -40,9 +40,8 @@ export default function Index() {
           Hi, I&apos;m Steve.
           <br />
           <span className="bg-gradient-to-r from-indigo-500 via-red-500 to-yellow-500 bg-clip-text text-transparent dark:from-indigo-400 dark:via-red-500 dark:to-yellow-400">
-            I build things people love
+            I build things people love.
           </span>
-          .
         </h1>
 
         <h2 className="text-2xl sm:text-3xl">
