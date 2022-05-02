@@ -50,6 +50,12 @@ export default function App() {
               `,
           }}
         />
+
+        <script
+          data-domain="steve-adams.me"
+          defer
+          src="https://plausible.io/js/plausible.js"
+        ></script>
       </head>
 
       <body className="bg-gradient-to-tr from-gray-50 to-gray-100 dark:from-gray-800 dark:to-gray-800">
