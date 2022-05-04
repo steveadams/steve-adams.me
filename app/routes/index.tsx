@@ -58,7 +58,7 @@ export default function Index() {
           what you&apos;re working on.
         </p>
 
-        <ul className="mx-auto my-16 flex w-fit grow-0 list-none justify-center gap-x-3 rounded-xl bg-white px-4 py-3 dark:bg-black/25">
+        <ul className="mx-auto my-16 flex w-fit grow-0 list-none flex-col justify-center gap-y-1.5 gap-x-3 rounded-xl bg-white px-4 py-3 prose-li:my-0 dark:bg-black/25 sm:flex-row">
           <li>
             <Link href="mailto:steve@steve-adams.me">
               <IconAt className="h-5 w-5" stroke={1.5} /> Email me
