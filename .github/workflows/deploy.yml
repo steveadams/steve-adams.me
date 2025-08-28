@@ -41,8 +41,8 @@ jobs:
           # Create mount point
           sudo mkdir -p /mnt/webdav
           
-          # Mount WebDAV
-          echo "${{ secrets.FASTMAIL_WEBDAV_PASSWORD }}" | sudo mount -t davfs ${{ secrets.FASTMAIL_WEBDAV_URL }} /mnt/webdav -o username=${{ secrets.FASTMAIL_WEBDAV_USERNAME }},uid=$(id -u),gid=$(id -g)
+          # Mount WebDAV with better options for stability
+          echo "${{ secrets.FASTMAIL_WEBDAV_PASSWORD }}" | sudo mount -t davfs ${{ secrets.FASTMAIL_WEBDAV_URL }} /mnt/webdav -o username=${{ secrets.FASTMAIL_WEBDAV_USERNAME }},uid=$(id -u),gid=$(id -g),file_mode=644,dir_mode=755
           
           # Generate unique temporary directory name using timestamp
           TEMP_DIR="steve-adams.me-deploy-$(date +%s)"
@@ -54,18 +54,34 @@ jobs:
           sudo mkdir -p "/mnt/webdav/$TEMP_DIR"
           sudo rsync -av ./.vitepress/dist/ "/mnt/webdav/$TEMP_DIR/"
           
-          # Atomic swap: rename directories
+          # Sync to flush any cached writes
+          sudo sync
+          sleep 2
+          
+          # WebDAV-friendly atomic swap using rsync + rm instead of mv
           if [ -d "/mnt/webdav/steve-adams.me" ]; then
-            echo "Backing up current site to: $OLD_DIR"
-            sudo mv "/mnt/webdav/steve-adams.me" "/mnt/webdav/$OLD_DIR"
+            echo "Creating backup of current site: $OLD_DIR"
+            sudo mkdir -p "/mnt/webdav/$OLD_DIR"
+            sudo rsync -av "/mnt/webdav/steve-adams.me/" "/mnt/webdav/$OLD_DIR/"
+            
+            echo "Replacing current site with new version"
+            sudo rsync -av --delete "/mnt/webdav/$TEMP_DIR/" "/mnt/webdav/steve-adams.me/"
+          else
+            echo "No existing site, creating new one"
+            sudo mkdir -p "/mnt/webdav/steve-adams.me"
+            sudo rsync -av "/mnt/webdav/$TEMP_DIR/" "/mnt/webdav/steve-adams.me/"
           fi
           
-          echo "Activating new site"
-          sudo mv "/mnt/webdav/$TEMP_DIR" "/mnt/webdav/steve-adams.me"
+          # Sync again to ensure all writes are committed
+          sudo sync
+          sleep 1
           
-          # Clean up old backup after successful deployment
+          # Clean up temporary and backup directories
+          echo "Cleaning up temporary directory: $TEMP_DIR"
+          sudo rm -rf "/mnt/webdav/$TEMP_DIR"
+          
           if [ -d "/mnt/webdav/$OLD_DIR" ]; then
-            echo "Cleaning up old backup: $OLD_DIR"
+            echo "Cleaning up backup directory: $OLD_DIR"
             sudo rm -rf "/mnt/webdav/$OLD_DIR"
           fi
           
