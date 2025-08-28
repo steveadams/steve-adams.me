@@ -1,0 +1,93 @@
+/* Custom styles for your VitePress theme */
+
+/* Ensure code blocks maintain Ghost formatting */
+.vp-code-group .tabs {
+  margin-bottom: 0;
+}
+
+/* Improve external link styling */
+a[target="_blank"]::after {
+  content: " ↗";
+  font-size: 0.8em;
+  opacity: 0.7;
+}
+
+/* Gallery component responsive adjustments */
+@media (max-width: 768px) {
+  .gallery-grid {
+    gap: 0.25rem;
+  }
+
+  .gallery-item img {
+    height: 150px;
+  }
+}
+
+/* Page title styling - global adjustments */
+.vp-doc .page-title {
+  /* Ensure page titles integrate well with VitePress content spacing */
+  margin-top: 0;
+}
+
+/* Adjust spacing for content that follows page titles */
+.vp-doc .page-title + * {
+  margin-top: 0 !important;
+}
+
+/* Special handling for script blocks that might appear after titles */
+.vp-doc .page-title + div[class*="language-"] {
+  margin-top: 1rem !important;
+}
+
+/* Code blocks followed by Note component - remove bottom-right border radius */
+div[class*="language-"] + .post-note {
+  /* Note styling handled in component */
+}
+
+div[class*="language-"]:has(+ .post-note) {
+  border-bottom-left-radius: 0;
+  border-bottom-right-radius: 0;
+  margin-bottom: 0;
+}
+
+/* Fallback for browsers without :has() support */
+div[class*="language-"] + .post-note {
+  margin-bottom: 1rem;
+}
+
+div[class*="language-"] + .post-note + * {
+  margin-top: 1rem;
+}
+
+mux-player {
+  display: block;
+  border-radius: 0.25rem;
+  overflow: hidden;
+}
+
+/* Code blocks breakout styling - extend beyond normal content width */
+@media (min-width: 900px) {
+  .vp-doc div[class*="language-"],
+  .vp-block {
+    margin-left: -3rem;
+    margin-right: -3rem;
+  }
+}
+
+/* Medium screens - fit to window width */
+@media (min-width: 640px) and (max-width: 899px) {
+  .vp-doc div[class*="language-"],
+  .vp-block {
+    margin-left: -1rem;
+    margin-right: -1rem;
+  }
+}
+
+/* Mobile breakout for smaller screens */
+@media (max-width: 639px) {
+  .vp-doc div[class*="language-"],
+  .vp-block {
+    margin-left: -0.5rem;
+    margin-right: -0.5rem;
+  }
+}

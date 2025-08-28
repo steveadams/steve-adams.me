@@ -1,3 +1,41 @@
-.DS_Store
+# Dependencies
 node_modules
-.vitepress
+pnpm-global
+
+# VitePress build output and cache (keep config and theme)
+.vitepress/dist
+.vitepress/cache
+
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# System files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# IDE
+.vscode
+.idea
+
+# Temporary Ghost import files (remove these when migration is complete)
+steve-adams.ghost.*.json
+analyze-ghost-images.js
+convert-ghost-posts.js
+content/
+
+# Environment files
+.env.local
+.env.*.local
+
+# Build files
+dist
+*.tgz
