@@ -52,4 +52,16 @@ export default defineConfig({
       rightDelimiter: '}'
     }
   },
+  
+  vite: {
+    // Prevent any web fonts from being bundled
+    optimizeDeps: {
+      exclude: ['@fontsource/*']
+    },
+    build: {
+      rollupOptions: {
+        external: ['@fontsource/*']
+      }
+    }
+  }
 });
