@@ -8,89 +8,89 @@ on:
 jobs:
   deploy:
     runs-on: ubuntu-latest
-    
+
     steps:
       - name: Checkout
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      
+
       - name: Setup pnpm
         uses: pnpm/action-setup@v2
         with:
           version: latest
-      
+
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: '20'
           cache: 'pnpm'
-      
+
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
-      
+
       - name: Build VitePress site
         run: pnpm run build
-      
+
       - name: Atomic deploy to Fastmail via WebDAV
         run: |
           # Install davfs2 for WebDAV support
           sudo apt-get update
           sudo apt-get install -y davfs2
-          
-          # Create mount point
+
+          # Create the mount point
           sudo mkdir -p /mnt/webdav
-          
+
           # Mount WebDAV with better options for stability
           echo "${{ secrets.FASTMAIL_WEBDAV_PASSWORD }}" | sudo mount -t davfs ${{ secrets.FASTMAIL_WEBDAV_URL }} /mnt/webdav -o username=${{ secrets.FASTMAIL_WEBDAV_USERNAME }},uid=$(id -u),gid=$(id -g),file_mode=644,dir_mode=755
-          
+
           # Generate unique temporary directory name using timestamp
           TEMP_DIR="steve-adams.me-deploy-$(date +%s)"
           OLD_DIR="steve-adams.me-old-$(date +%s)"
-          
+
           echo "Deploying to temporary directory: $TEMP_DIR"
-          
+
           # Create temporary directory and upload new site (skip unchanged files)
           sudo mkdir -p "/mnt/webdav/$TEMP_DIR"
           sudo rsync -av --checksum --compress ./.vitepress/dist/ "/mnt/webdav/$TEMP_DIR/"
-          
+
           # Sync to flush any cached writes
           sudo sync
           sleep 2
-          
+
           # Optimized deployment: sync directly to target, skipping unchanged files
           if [ -d "/mnt/webdav/steve-adams.me" ]; then
             echo "Updating existing site (skipping unchanged files)"
-            
+
             # Create backup before updating
             echo "Creating backup of current site: $OLD_DIR"
             sudo mkdir -p "/mnt/webdav/$OLD_DIR"
             sudo rsync -av "/mnt/webdav/steve-adams.me/" "/mnt/webdav/$OLD_DIR/"
-            
-            # Efficient update: only transfer changed files
+
+            # Only transfer changed files
             echo "Syncing changes to live site"
             sudo rsync -av --checksum --compress --delete ./.vitepress/dist/ "/mnt/webdav/steve-adams.me/"
-            
-            # Clean up temp directory (no longer needed)
+
+            # Clean up the temp directory
             sudo rm -rf "/mnt/webdav/$TEMP_DIR"
           else
-            echo "No existing site, deploying fresh copy"
+            echo "No existing site; deploying a fresh copy"
             sudo mkdir -p "/mnt/webdav/steve-adams.me"
             sudo rsync -av --compress "/mnt/webdav/$TEMP_DIR/" "/mnt/webdav/steve-adams.me/"
             sudo rm -rf "/mnt/webdav/$TEMP_DIR"
           fi
-          
+
           # Sync again to ensure all writes are committed
           sudo sync
           sleep 1
-          
-          # Clean up backup directory (temp dir already cleaned up above)
+
+          # Clean up backup directory (temp dir already cleaned up)
           if [ -d "/mnt/webdav/$OLD_DIR" ]; then
             echo "Cleaning up backup directory: $OLD_DIR"
             sudo rm -rf "/mnt/webdav/$OLD_DIR"
           fi
-          
+
           echo "Deployment completed successfully"
-          
+
           # Unmount
           sudo umount /mnt/webdav
