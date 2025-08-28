@@ -1,0 +1,75 @@
+name: Deploy to Fastmail File Storage via WebDAV
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v2
+        with:
+          version: latest
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'pnpm'
+      
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+      
+      - name: Build VitePress site
+        run: pnpm run build
+      
+      - name: Atomic deploy to Fastmail via WebDAV
+        run: |
+          # Install davfs2 for WebDAV support
+          sudo apt-get update
+          sudo apt-get install -y davfs2
+          
+          # Create mount point
+          sudo mkdir -p /mnt/webdav
+          
+          # Mount WebDAV
+          echo "${{ secrets.FASTMAIL_WEBDAV_PASSWORD }}" | sudo mount -t davfs ${{ secrets.FASTMAIL_WEBDAV_URL }} /mnt/webdav -o username=${{ secrets.FASTMAIL_WEBDAV_USERNAME }},uid=$(id -u),gid=$(id -g)
+          
+          # Generate unique temporary directory name using timestamp
+          TEMP_DIR="steve-adams.me-deploy-$(date +%s)"
+          OLD_DIR="steve-adams.me-old-$(date +%s)"
+          
+          echo "Deploying to temporary directory: $TEMP_DIR"
+          
+          # Create temporary directory and upload new site
+          sudo mkdir -p "/mnt/webdav/$TEMP_DIR"
+          sudo rsync -av ./.vitepress/dist/ "/mnt/webdav/$TEMP_DIR/"
+          
+          # Atomic swap: rename directories
+          if [ -d "/mnt/webdav/steve-adams.me" ]; then
+            echo "Backing up current site to: $OLD_DIR"
+            sudo mv "/mnt/webdav/steve-adams.me" "/mnt/webdav/$OLD_DIR"
+          fi
+          
+          echo "Activating new site"
+          sudo mv "/mnt/webdav/$TEMP_DIR" "/mnt/webdav/steve-adams.me"
+          
+          # Clean up old backup after successful deployment
+          if [ -d "/mnt/webdav/$OLD_DIR" ]; then
+            echo "Cleaning up old backup: $OLD_DIR"
+            sudo rm -rf "/mnt/webdav/$OLD_DIR"
+          fi
+          
+          echo "Deployment completed successfully"
+          
+          # Unmount
+          sudo umount /mnt/webdav
