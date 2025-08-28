@@ -50,36 +50,41 @@ jobs:
           
           echo "Deploying to temporary directory: $TEMP_DIR"
           
-          # Create temporary directory and upload new site
+          # Create temporary directory and upload new site (skip unchanged files)
           sudo mkdir -p "/mnt/webdav/$TEMP_DIR"
-          sudo rsync -av ./.vitepress/dist/ "/mnt/webdav/$TEMP_DIR/"
+          sudo rsync -av --checksum --compress ./.vitepress/dist/ "/mnt/webdav/$TEMP_DIR/"
           
           # Sync to flush any cached writes
           sudo sync
           sleep 2
           
-          # WebDAV-friendly atomic swap using rsync + rm instead of mv
+          # Optimized deployment: sync directly to target, skipping unchanged files
           if [ -d "/mnt/webdav/steve-adams.me" ]; then
+            echo "Updating existing site (skipping unchanged files)"
+            
+            # Create backup before updating
             echo "Creating backup of current site: $OLD_DIR"
             sudo mkdir -p "/mnt/webdav/$OLD_DIR"
             sudo rsync -av "/mnt/webdav/steve-adams.me/" "/mnt/webdav/$OLD_DIR/"
             
-            echo "Replacing current site with new version"
-            sudo rsync -av --delete "/mnt/webdav/$TEMP_DIR/" "/mnt/webdav/steve-adams.me/"
+            # Efficient update: only transfer changed files
+            echo "Syncing changes to live site"
+            sudo rsync -av --checksum --compress --delete ./.vitepress/dist/ "/mnt/webdav/steve-adams.me/"
+            
+            # Clean up temp directory (no longer needed)
+            sudo rm -rf "/mnt/webdav/$TEMP_DIR"
           else
-            echo "No existing site, creating new one"
+            echo "No existing site, deploying fresh copy"
             sudo mkdir -p "/mnt/webdav/steve-adams.me"
-            sudo rsync -av "/mnt/webdav/$TEMP_DIR/" "/mnt/webdav/steve-adams.me/"
+            sudo rsync -av --compress "/mnt/webdav/$TEMP_DIR/" "/mnt/webdav/steve-adams.me/"
+            sudo rm -rf "/mnt/webdav/$TEMP_DIR"
           fi
           
           # Sync again to ensure all writes are committed
           sudo sync
           sleep 1
           
-          # Clean up temporary and backup directories
-          echo "Cleaning up temporary directory: $TEMP_DIR"
-          sudo rm -rf "/mnt/webdav/$TEMP_DIR"
-          
+          # Clean up backup directory (temp dir already cleaned up above)
           if [ -d "/mnt/webdav/$OLD_DIR" ]; then
             echo "Cleaning up backup directory: $OLD_DIR"
             sudo rm -rf "/mnt/webdav/$OLD_DIR"
