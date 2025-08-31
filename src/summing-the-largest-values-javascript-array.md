@@ -165,7 +165,7 @@ Though I'm sure no one reads this anymore, here's a great [overview of Big O not
 
 When we iterate through our array with a for loop, we have the benefit of knowing that if summing an array of 100 elements takes 5ms, then summing 500 elements should take something like 25ms. This is because the complexity of the task doesn't increase at all. Our work load has increased proportionally so if we have five times the work to do, we can expect our execution time to increase by around five times. This is O(n), and it's nice to have when possible.
 
-When we use Array.prototype.sort(), we're passing the workload to the browser's implemented sorting algorithm. As I understand, *most *browsers use the [merge sort](https://web.archive.org/web/20190130165942/http://en.wikipedia.org/wiki/Merge_sort){target="\_blank"} algorithm which has a complexity of O(n log n). It's guaranteed to be significantly slower than using a for loop in my function.
+When we use Array.prototype.sort(), we're passing the workload to the browser's implemented sorting algorithm. As I understand, *most *browsers use the [merge sort](https://web.archive.org/web/20190130165942/http://en.wikipedia.org/wiki/Merge_sort) algorithm which has a complexity of O(n log n). It's guaranteed to be significantly slower than using a for loop in my function.
 
 ### What Are the Implications?
 
@@ -177,7 +177,7 @@ I'm sure the sort algorithm is implemented extremely well. It's just the wrong t
 
 ### Profiling Our Solutions
 
-I decided to take my experiment to [jsperf](https://jsperf.app/sort-vs-for-in-array-summing){target="\_blank"} (now defunct 🫠) and see what the difference is. It's not a perfect test as it could be benefited by more samples and input variations... But its initial results are telling. The sort method is evidently **~97%** slower.
+I decided to take my experiment to [jsperf](https://jsperf.app/sort-vs-for-in-array-summing) (now defunct 🫠) and see what the difference is. It's not a perfect test as it could be benefited by more samples and input variations... But its initial results are telling. The sort method is evidently **~97%** slower.
 
 With a smaller array, perhaps with 5 to 10 elements, we'd probably see results with it being closer to 65% slower. This is on account of the sort algorithm's workload not increasing proportionally as the for loop's workload does; the performance will decrease as the workload increases.
 

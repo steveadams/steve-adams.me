@@ -7,7 +7,7 @@ description: "Welcome to one of the best parts of ES6. Iterators are probably th
 
 I've been writing JavaScript for well over 10 years, and while generators haven't been around the entire time (they appeared around 8 years ago), I never really _got_ them until recently.
 
-Having come to understand them better, I think I missed out all that time. In fact, I'd say most people are missing out if they don't have a good grasp on generators, and that includes a lot of people I've worked with. I'm not sure if I've worked with anyone who had a good grasp on when, why, or how to use them; they're just a thing that kind of mattered for a stint of time (anyone remember [Koa's](https://koajs.com/){target="\_blank"} generators?) and then were superseded by `async` and `await`.
+Having come to understand them better, I think I missed out all that time. In fact, I'd say most people are missing out if they don't have a good grasp on generators, and that includes a lot of people I've worked with. I'm not sure if I've worked with anyone who had a good grasp on when, why, or how to use them; they're just a thing that kind of mattered for a stint of time (anyone remember [Koa's](https://koajs.com/) generators?) and then were superseded by `async` and `await`.
 
 But were they?
 
@@ -130,7 +130,7 @@ type CustomArray<T> = {
 };
 ```
 
-All that `Iterator[T]` needs to do is provide a step-by-step method of iterating over all of the data. [Here](https://codesandbox.io/p/sandbox/custom-array-implementation-with-iterable-2r45cg){target="\_blank"} you can see an implementation of the type above, with a working iterator. Apart from the syntax sugar, you can get fairly close to a native array!
+All that `Iterator[T]` needs to do is provide a step-by-step method of iterating over all of the data. [Here](https://codesandbox.io/p/sandbox/custom-array-implementation-with-iterable-2r45cg) you can see an implementation of the type above, with a working iterator. Apart from the syntax sugar, you can get fairly close to a native array!
 
 Conveniently, since iterators are a foundational pattern in JavaScript, they have very well-defined structure which means you can write your own without much effort at all. Take a look at their typing—bear with me here if you aren't strong with types yet—and you'll see they're essentially composed of 3 parts:
 

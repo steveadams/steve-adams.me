@@ -482,4 +482,4 @@ Template.RecoverPassword.events({
 
 <Note>client/accounts/change-password.js</Note>
 
-Anyway, that's plenty to get your feet wet doing manual account management with Meteor. There's so much more you can do to customize your app, and the best way to find out how is [reading the docs!](http://docs.meteor.com){target="\_blank"} With this foundation, the rest of it is a breeze.
+Anyway, that's plenty to get your feet wet doing manual account management with Meteor. There's so much more you can do to customize your app, and the best way to find out how is [reading the docs!](http://docs.meteor.com) With this foundation, the rest of it is a breeze.

@@ -5,7 +5,7 @@ slug: "typescript-benchmarking-mitata"
 description: "See how you can keep track of TypeScript performance with mitata: a tiny, fast, Rust-based benchmarking library."
 ---
 
-Way back, [I wrote about benchmarking](./summing-the-largest-values-javascript-array) some sloppy interview code using jsperf.com (now [jsperf.app](https://jsperf.app){target="\_blank"}). The gist of it is that I wrote a naive array searching algorithm for finding the two largest numbers in an array, and upon discovering just how bad my solution was, I decided to benchmark it to properly stomp on my self esteem a little bit. The contrast between the first solution and the second was surprising and incredibly insightful, and since then I've loved leaning on benchmarks to learn more and hone in on better solutions.
+Way back, [I wrote about benchmarking](./summing-the-largest-values-javascript-array) some sloppy interview code using jsperf.com (now [jsperf.app](https://jsperf.app)). The gist of it is that I wrote a naive array searching algorithm for finding the two largest numbers in an array, and upon discovering just how bad my solution was, I decided to benchmark it to properly stomp on my self esteem a little bit. The contrast between the first solution and the second was surprising and incredibly insightful, and since then I've loved leaning on benchmarks to learn more and hone in on better solutions.
 
 These days I do most of my benchmarking in Go and Rust because it's implemented in their standard libraries so well; there's no reason not to do it. I'm not as diligent when it comes to TypeScript, so I wanted to revisit that old benchmark and try to devise a convention I'd actually use, regardless of which runtime I'm using.
 
@@ -48,7 +48,7 @@ To run the benchmarks which will be written in TypeScript, I'm using typescript,
 
 ### Typescript Configuration
 
-The TypeScript configuration is typical except for a ts-node entry. This is used to modify the compilation for running scripts with ts-node, which we don't necessarily _have_ to do for this example but under real-world circumstances I expect you would. Likely the most modern feature you need is top-level await, making it so you can await the run function exported from mitata. You can [learn more about this ts-node convention here](https://typestrong.org/ts-node/docs/configuration/){target="\_blank"}. I've also added a specific secondary config for builds, which avoids compiling any benchmarking or test files and provides an output destination:
+The TypeScript configuration is typical except for a ts-node entry. This is used to modify the compilation for running scripts with ts-node, which we don't necessarily _have_ to do for this example but under real-world circumstances I expect you would. Likely the most modern feature you need is top-level await, making it so you can await the run function exported from mitata. You can [learn more about this ts-node convention here](https://typestrong.org/ts-node/docs/configuration/). I've also added a specific secondary config for builds, which avoids compiling any benchmarking or test files and provides an output destination:
 
 ```json
 {
@@ -366,4 +366,4 @@ mitata seems great so far. There are a few quality of life features I'd like to 
 
 In the future I'll hopefully write a bit about building around mitata to create useful tools for tracking performance over time, but I'll need to put some thought into making that useful and portable.
 
-Feel free to [take a look at the code on github](https://github.com/steveadams/sum-two-largest-numbers/tree/v1.0.0){target="\_blank"}.
+Feel free to [take a look at the code on github](https://github.com/steveadams/sum-two-largest-numbers/tree/v1.0.0).

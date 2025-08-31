@@ -83,11 +83,11 @@ export async function getUserPrivateData(userId: string) {
 
 <Note text="/somewhere/user-data.ts" />
 
-You can even enforce that in your code base using [this eslint rule](https://github.com/c-ehrlich/eslint-plugin-use-server){target="\_blank"}. It isn't perfect, but it's a good start and good practice in general.
+You can even enforce that in your code base using [this eslint rule](https://github.com/c-ehrlich/eslint-plugin-use-server). It isn't perfect, but it's a good start and good practice in general.
 
 ### Import 'server-only'
 
-Another strategy is specifying files as 'server-only'. This ensures nothing in the file will be made accessible to the client (using a [surprisingly simple method](https://github.com/vercel/next.js/blob/528980f680a7756264a38fe1cf3f900a1dceeef7/packages/next/src/compiled/server-only/index.js){target="\_blank"}, too). In the example above, we can move our server-only function to a new file and specify that it should say on the server:
+Another strategy is specifying files as 'server-only'. This ensures nothing in the file will be made accessible to the client (using a [surprisingly simple method](https://github.com/vercel/next.js/blob/528980f680a7756264a38fe1cf3f900a1dceeef7/packages/next/src/compiled/server-only/index.js), too). In the example above, we can move our server-only function to a new file and specify that it should say on the server:
 
 ```typescript
 import "server-only";
@@ -213,7 +213,7 @@ export async function getUserPrivateData(userId: string) {
 
 Now, no matter what's exported, we know that only privileged users will see the data that the functions can expose. If someone were to clumsily add a use server to the top level of the file, it's going to be alright. Not everyone will be able to view the sensitive data, even though the function is public.
 
-Of course, you'll want to think about organizing the code pertaining to access control in a way that it's easily testable and reusable. The example above isn't a suggestion for how to do that. [This example from Vercel](https://nextjs.org/blog/security-nextjs-server-components-actions){target="\_blank"} has some helpful ideas like the dto pattern, (which I've borrowed a bit from here), but if this is new territory to you, don't stop there! Security is wildly important and a single blog post will never be enough to get you up to speed.
+Of course, you'll want to think about organizing the code pertaining to access control in a way that it's easily testable and reusable. The example above isn't a suggestion for how to do that. [This example from Vercel](https://nextjs.org/blog/security-nextjs-server-components-actions) has some helpful ideas like the dto pattern, (which I've borrowed a bit from here), but if this is new territory to you, don't stop there! Security is wildly important and a single blog post will never be enough to get you up to speed.
 
 ### Configure code owner rules
 

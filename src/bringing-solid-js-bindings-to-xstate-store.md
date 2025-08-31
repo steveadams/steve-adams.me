@@ -17,7 +17,7 @@ Well alright, let's do it!
 
 ## The plan of attack
 
-The [XState contribution guide](https://github.com/statelyai/xstate/blob/main/CONTRIBUTING.md){target="\_blank"} makes it easy to figure out how to go about putting together this PR:
+The [XState contribution guide](https://github.com/statelyai/xstate/blob/main/CONTRIBUTING.md) makes it easy to figure out how to go about putting together this PR:
 
 1. **Fork and clone** the `xstate` repository
 2. **Create a new branch.** I checked for a branching convention, but there isn't an obvious one so I went with `xstate-store/solid`
@@ -313,7 +313,7 @@ Creating a changeset was pleasantly easy, and I haven't encountered the tool the
 
 ### The pull request
 
-[Here's the final PR!](https://github.com/statelyai/xstate/pull/5056){target="\_blank"} Hopefully it's put to good use.
+[Here's the final PR!](https://github.com/statelyai/xstate/pull/5056) Hopefully it's put to good use.
 
 ## Closing
 

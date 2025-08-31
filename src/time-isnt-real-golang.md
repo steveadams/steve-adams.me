@@ -28,7 +28,7 @@ I think a great way to frame this is that _time isn't real_, and programming as 
 
 Where time.Sleep() _feels_ like the right tool (we don't want to do anything while we wait for ~24 hours), it comes with baggage that gets in our way. What we're really aiming to do here isn't necessarily wait for a duration at all; we simply want functions to be called according to time-based events. It's kind of a semantic mistake, but my problem was still due to modelling the problem incorrectly in my head.
 
-So, how would you model this if it weren't temporal? In Go, I started to realize a lot of people would use channels to arbitrarily trigger executions, but I wasn't aware of a good way to do this. It turns out [time.Ticker](https://pkg.go.dev/time#Ticker){target="\_blank"} is meant for exactly this purpose: it repeatedly produces a signal on a dedicated, internal channel (Ticker.C) after the elapse of a [time.Duration](https://pkg.go.dev/time#Duration){target="\_blank"} up until [Ticker.Stop()](https://pkg.go.dev/time#Ticker.Stop){target="\_blank"} is called.
+So, how would you model this if it weren't temporal? In Go, I started to realize a lot of people would use channels to arbitrarily trigger executions, but I wasn't aware of a good way to do this. It turns out [time.Ticker](https://pkg.go.dev/time#Ticker) is meant for exactly this purpose: it repeatedly produces a signal on a dedicated, internal channel (Ticker.C) after the elapse of a [time.Duration](https://pkg.go.dev/time#Duration) up until [Ticker.Stop()](https://pkg.go.dev/time#Ticker.Stop) is called.
 
 ## A solution
 

@@ -522,7 +522,7 @@ It works really well!
 
 By combining all of these patterns, you wind up with a remarkably reliable and robust state management tool. Once I'd implemented all of my logic, my store (representing the entire game's logic) came to about 250 LOC despite me not taking many efforts to minimize that metric. Although it isn't very large, it's very robust, easy to read or change, and extremely straight forward to test.
 
-I'm sure some leetcoder could point out some really bad ideas in here and cut the logic down quite a bit. I'm alright with that. Check out the [entire store implementation here](https://github.com/steveadams/minesweeper-store/blob/main/src/store/store.ts){target="\_blank"}.
+I'm sure some leetcoder could point out some really bad ideas in here and cut the logic down quite a bit. I'm alright with that. Check out the [entire store implementation here](https://github.com/steveadams/minesweeper-store/blob/main/src/store/store.ts).
 
 ## On emitted events
 
@@ -590,7 +590,7 @@ Again, matching on possible event values mean if this event ever changes, I’ll
 
 I made a note about testing earlier, and I won't go into it too deeply here. Something I noticed while working on this though is that this way of modelling state, while not quite as rock-solid as a state machine, is very nice to model tests around. Once you have your context events defined, it becomes relatively clear what kinds of states you want to validate and the edge cases you want to rule out.
 
-Really, the process of writing the [integration tests](https://github.com/steveadams/minesweeper-store/blob/main/src/components/App.test.tsx){target="\_blank"} for this game took very little time and once I was finished, changing implementations very rarely caused the tests to fail. It's a really nice pattern.
+Really, the process of writing the [integration tests](https://github.com/steveadams/minesweeper-store/blob/main/src/components/App.test.tsx) for this game took very little time and once I was finished, changing implementations very rarely caused the tests to fail. It's a really nice pattern.
 
 ```bash
  RERUN  src/components/App.test.tsx x26
@@ -628,7 +628,7 @@ Really, the process of writing the [integration tests](https://github.com/stevea
 
 ## Give it a try!
 
-You can try this game out yourself [here](https://storesweeper.steve-adams.me/){target="\_blank"} (don't mind the ugly UI), and check out the repository [here](https://github.com/steveadams/minesweeper-store){target="\_blank"}.
+You can try this game out yourself [here](https://storesweeper.steve-adams.me/) (don't mind the ugly UI), and check out the repository [here](https://github.com/steveadams/minesweeper-store).
 
 I've had a ton of fun experimenting with this store and I'm going to be using it a lot in the future. It's a great blend of features, and the resulting performance for most applications would be excellent. I really can't see a reason not to check it out.
 
