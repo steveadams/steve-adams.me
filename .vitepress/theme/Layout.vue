@@ -11,7 +11,34 @@
 
 <script setup>
 import DefaultTheme from 'vitepress/theme'
+import { onMounted, onUnmounted } from 'vue'
+
 const { Layout } = DefaultTheme
+
+function expandDetailsForHash() {
+  const hash = window.location.hash
+  if (!hash) return
+
+  const target = document.querySelector(hash)
+  if (!target) return
+
+  let el = target.parentElement
+  while (el) {
+    if (el.tagName === 'DETAILS' && !el.open) {
+      el.open = true
+    }
+    el = el.parentElement
+  }
+}
+
+onMounted(() => {
+  expandDetailsForHash()
+  window.addEventListener('hashchange', expandDetailsForHash)
+})
+
+onUnmounted(() => {
+  window.removeEventListener('hashchange', expandDetailsForHash)
+})
 </script>
 
 <style scoped>

@@ -5,7 +5,7 @@ slug: "work-with-me"
 description: "Steve Adams | Senior Full Stack Developer "
 ---
 
-After <span v-text="new Date().getFullYear() - 2008"></span> years in software, I primarily think of myself as a bridge for the gap between complex backend systems and intuitive, beautiful user interfaces. I love to focus on program correctness, efficiency, stability, and exceptional UX.
+After <span v-text="new Date().getFullYear() - 2008"></span> years in software, I primarily think of myself as a bridge for the gap between complex backend systems and intuitive, beautiful user interfaces. I love to focus on program correctness, efficiency, stability, and exceptional UX. See my resume [here](/resume).
 
 ## Highlights
 
@@ -34,13 +34,14 @@ My career has allowed me to work with a lot of different people, problems, conte
 
 My strongest stacks are TypeScript, the DOM, Web APIs, and Go. I've also worked with Python, Ruby, and Rust more than enough to be productive with them, and Rust is by far one of my favourites. Whatever you're working with, it's a good bet that I'll get up to speed quickly.
 
-In terms of libraries and tools I've used very often:
+#### Tools I've used often
 
-- React, Redux, Zustand
+- React, React Query, Next.js
+- Redux, Zustand
 - XState
 - Node.js, Express, Koa, Hono
 - Gin
-- Postgres
+- Postgres, SQLite, MongoDB
 - Rest, GraphQL, RPC
 - Docker
 
