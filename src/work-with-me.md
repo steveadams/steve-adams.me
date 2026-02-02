@@ -5,7 +5,7 @@ slug: "work-with-me"
 description: "Steve Adams | Senior Full Stack Developer "
 ---
 
-After <span v-text="new Date().getFullYear() - 2008"></span> years in software, I primarily think of myself as a bridge for the gap between complex backend systems and intuitive, beautiful user interfaces. I love to focus on program correctness, efficiency, stability, and exceptional UX.
+After <span v-text="new Date().getFullYear() - 2008"></span> years in software, I primarily think of myself as a bridge for the gap between complex backend systems and intuitive, beautiful user interfaces. I love to focus on program correctness, efficiency, stability, and exceptional UX. See my resume [here](https://steve-adams.me/resume).
 
 ## Highlights
 
