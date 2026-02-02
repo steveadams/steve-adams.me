@@ -28,9 +28,6 @@ Thumbs.db
 
 # Temporary Ghost import files (remove these when migration is complete)
 steve-adams.ghost.*.json
-analyze-ghost-images.js
-convert-ghost-posts.js
-content/
 
 # Environment files
 .env.local

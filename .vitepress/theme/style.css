@@ -71,6 +71,11 @@ mux-player {
   overflow: hidden;
 }
 
+/* Collapsible details sections */
+summary {
+  cursor: pointer;
+}
+
 /* Code blocks breakout styling - extend beyond normal content width */
 @media (min-width: 900px) {
   .vp-doc div[class*="language-"],
