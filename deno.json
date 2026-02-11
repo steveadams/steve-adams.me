@@ -1,5 +1,9 @@
 {
+  "tasks": {
+    "dev": "deno run --allow-net --allow-read main.ts",
+    "preview": "deno run --allow-net --allow-read main.ts"
+  },
   "imports": {
-    "@std/streams": "jsr:@std/streams@^1.0.17"
+    "@std/http": "jsr:@std/http@^1.0.15"
   }
 }
