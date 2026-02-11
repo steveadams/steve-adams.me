@@ -1,0 +1,491 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Oak Bay High School - 25th Annual Garden Compost Sale</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@900&family=Inter:wght@400;500;600;700;900&display=swap" rel="stylesheet">
+    <style>
+        @page {
+            size: letter;
+            margin: 0;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            line-height: 1.4;
+            color: #000;
+            background: white;
+        }
+
+        .display-font {
+            font-family: 'Montserrat', sans-serif;
+            font-weight: 900;
+        }
+
+        .page {
+            width: 8.5in;
+            height: 11in;
+            padding: 0.4in;
+            margin: 0 auto;
+            background: white;
+            display: flex;
+            flex-direction: column;
+        }
+
+        /* Header */
+        header {
+            text-align: center;
+            padding: 15px 20px;
+            background: white;
+            /*margin-bottom: 12px;*/
+        }
+
+        h2 {
+            font-size: 1.5rem;
+            margin-bottom: 12px;
+            text-align: center;
+            font-weight: 800;
+        }
+
+        .school-name {
+            font-size: 3rem;
+            font-weight: 900;
+            color: #1a5d1a;
+            margin-bottom: 12px;
+        }
+
+        .header-badge {
+            display: inline-flex;
+            flex-direction: column;
+            align-items: center;
+            width: auto;
+            padding: 8px 16px;
+            border: 6px solid rgba(252, 179, 7, 0.5);
+            border-radius: 36px;
+            position: relative;
+        }
+
+        .event-title {
+            font-size: 1.8rem;
+            font-weight: 700;
+            color: #000;
+            margin: 0;
+        }
+
+        .anniversary-text {
+            font-size: 0.8rem;
+            font-weight: 900;
+            color: #fff;
+            background: #1a5d1a;
+            position: absolute;
+            top: -16px;
+            right: -36px;
+            border-radius: 12px;
+            padding: 4px 8px;
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+        }
+
+        .anniversary-text sup {
+            font-size: 0.6em;
+            align-self: flex-start;
+            margin-left: -2px;
+        }
+
+        /* Description section */
+        .description-section {
+            background: white;
+            /*border: 2px solid #000;*/
+            border-radius: 12px;
+            padding: 15px 20px;
+            margin-bottom: 15px;
+            text-align: center;
+        }
+
+        .description-section p {
+            font-size: 1.25rem;
+            color: #222;
+            margin-bottom: 10px;
+        }
+
+        .description-section p:last-child {
+            margin-bottom: 0;
+        }
+
+        .product-tags {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            justify-content: center;
+            margin-top: 10px;
+        }
+
+        .product-tag {
+            background: #e8f5e9;
+            color: #1a5d1a;
+            padding: 4px 12px;
+            border-radius: 15px;
+            font-size: 0.75rem;
+            font-weight: 600;
+            border: 1px solid #1a5d1a;
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+        }
+
+        .icon {
+            vertical-align: middle;
+            flex-shrink: 0;
+        }
+
+        /* Main content grid */
+        .main-content {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 15px;
+            flex: 1;
+        }
+
+        /* Left column - Pricing and Steps */
+        .left-column {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+
+        /* Pricing */
+        .pricing-section {
+            background: #e8f5e9;
+            border: 3px solid #1a5d1a;
+            border-radius: 12px;
+            padding: 12px 15px;
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+
+        .price-row {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .price-row .amount {
+            font-size: 1.8rem;
+            font-weight: 900;
+            color: #1a5d1a;
+            min-width: 60px;
+        }
+
+        .price-row .description {
+            font-size: 0.95rem;
+            color: #000;
+            font-weight: 500;
+        }
+
+        .price-row .savings {
+            background: #1a5d1a;
+            color: white;
+            padding: 2px 8px;
+            border-radius: 10px;
+            font-size: 0.7rem;
+            font-weight: 700;
+            margin-left: auto;
+        }
+
+        .delivery-note {
+            font-size: 0.8rem;
+            color: #000;
+            font-weight: 500;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            margin-top: 4px;
+            padding-top: 8px;
+            border-top: 1px solid rgba(26, 93, 26, 0.3);
+        }
+
+        /* Steps */
+        .steps-section {
+            background: white;
+            border: 3px solid #1a5d1a;
+            border-radius: 12px;
+            padding: 15px;
+            flex: 1;
+        }
+
+        .steps-section h2 {
+            color: #000;
+            font-size: 1.1rem;
+            margin-bottom: 12px;
+            font-weight: 700;
+        }
+
+        .step {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 10px;
+            align-items: center;
+        }
+
+        .step:last-child {
+            margin-bottom: 0;
+        }
+
+        .step-number {
+            flex-shrink: 0;
+            width: 28px;
+            height: 28px;
+            background: #1a5d1a;
+            color: white;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.85rem;
+            font-weight: 700;
+        }
+
+        .step-content {
+            font-size: 0.85rem;
+            color: #000;
+        }
+
+        .step-content strong {
+            font-weight: 700;
+        }
+
+        /* Seller section - full width */
+        .seller-section {
+            background: #e8f5e9;
+            border: 3px solid #1a5d1a;
+            border-radius: 12px;
+            padding: 12px 20px;
+            text-align: center;
+            margin-top: 15px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 20px;
+        }
+
+        .seller-section .label {
+            font-size: 0.85rem;
+            color: #000;
+            font-weight: 500;
+        }
+
+        .seller-section .name {
+            font-size: 1.3rem;
+            font-weight: 700;
+            color: #1a5d1a;
+        }
+
+        .seller-section .phone {
+            font-size: 1.3rem;
+            color: #1a5d1a;
+            font-weight: 700;
+        }
+
+        /* Right column - QR */
+        .right-column {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+
+        /* QR Section */
+        .qr-section {
+            background: #1a5d1a;
+            color: white;
+            text-align: center;
+            padding: 20px;
+            border-radius: 12px;
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+        }
+
+        .qr-container {
+            background: white;
+            padding: 12px;
+            border-radius: 10px;
+            margin: 0 auto;
+            width: 90%;
+            max-width: 200px;
+            aspect-ratio: 1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .qr-container img {
+            width: 100%;
+            height: 100%;
+            object-fit: contain;
+        }
+
+        .scan-text {
+            font-size: 0.85rem;
+            margin-top: 12px;
+        }
+
+        /* Deadline banner - full width */
+        .deadline-banner {
+            background: #c62828;
+            color: white;
+            text-align: center;
+            padding: 14px;
+            border-radius: 12px;
+            margin-top: 15px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 15px;
+        }
+
+        .deadline-banner .label {
+            font-size: 1.1rem;
+            font-weight: 500;
+        }
+
+        .deadline-banner .date {
+            font-size: 1.5rem;
+            font-weight: 700;
+        }
+
+        /* Footer */
+        footer {
+            text-align: center;
+            padding-top: 12px;
+            font-size: 0.75rem;
+            color: #333;
+        }
+
+        .footer-logo {
+            height: 60px;
+            margin-bottom: 5px;
+        }
+
+        @media print {
+            body {
+                -webkit-print-color-adjust: exact;
+                print-color-adjust: exact;
+            }
+            .page {
+                margin: 0;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="page">
+        <header>
+            <div class="school-name display-font">Oak Bay High School</div>
+            <div class="header-badge">
+                <div class="anniversary-text"><svg xmlns="http://www.w3.org/2000/svg" height="12px" viewBox="0 -960 960 960" width="12px" fill="currentColor"><path d="m233-120 65-281L80-590l288-25 112-265 112 265 288 25-218 189 65 281-247-149-247 149Z"/></svg> 25<sup>th</sup> Annual</div>
+                <h1 class="event-title display-font">Garden Compost Sale</h1>
+            </div>
+        </header>
+
+        <!-- Description Section -->
+        <div class="description-section">
+            <p>Oak Bay High School is raising money for an upcoming track tour by selling <strong>high-quality compost</strong> — a mix of yard compost and cow manure, well-ground, aged, and sourced locally from Island businesses.</p>
+            <div class="product-tags">
+                <span class="product-tag"><svg xmlns="http://www.w3.org/2000/svg" height="16px" viewBox="0 -960 960 960" width="16px" fill="#1f1f1f"><path d="M240-200h480l-57-400H297l-57 400Zm240-480q17 0 28.5-11.5T520-720q0-17-11.5-28.5T480-760q-17 0-28.5 11.5T440-720q0 17 11.5 28.5T480-680Zm113 0h70q30 0 52 20t27 49l57 400q5 36-18.5 63.5T720-120H240q-37 0-60.5-27.5T161-211l57-400q5-29 27-49t52-20h70q-3-10-5-19.5t-2-20.5q0-50 35-85t85-35q50 0 85 35t35 85q0 11-2 20.5t-5 19.5ZM240-200h480-480Z"/></svg>35-40 lbs per bag</span>
+                <span class="product-tag"><svg class="icon" xmlns="http://www.w3.org/2000/svg" height="16px" viewBox="0 -960 960 960" width="16px" fill="currentColor"><path d="M336-120q-91 0-153.5-62.5T120-336q0-38 13-74t37-65l142-171-97-194h530l-97 194 142 171q24 29 37 65t13 74q0 91-63 153.5T624-120H336Zm144-200q-33 0-56.5-23.5T400-400q0-33 23.5-56.5T480-480q33 0 56.5 23.5T560-400q0 33-23.5 56.5T480-320Zm-95-360h190l40-80H345l40 80Zm-49 480h288q57 0 96.5-39.5T760-336q0-24-8.5-46.5T728-423L581-600H380L232-424q-15 18-23.5 41t-8.5 47q0 57 39.5 96.5T336-200Z"/></svg> Reusable industrial bags</span>
+                <span class="product-tag"><svg class="icon" xmlns="http://www.w3.org/2000/svg" height="16px" viewBox="0 -960 960 960" width="16px" fill="currentColor"><path d="M480-480q33 0 56.5-23.5T560-560q0-33-23.5-56.5T480-640q-33 0-56.5 23.5T400-560q0 33 23.5 56.5T480-480Zm0 294q122-112 181-203.5T720-552q0-109-69.5-178.5T480-800q-101 0-170.5 69.5T240-552q0 71 59 162.5T480-186Zm0 106Q319-217 239.5-334.5T160-552q0-150 96.5-239T480-880q127 0 223.5 89T800-552q0 100-79.5 217.5T480-80Zm0-480Z"/></svg> Locally sourced</span>
+                <span class="product-tag"><svg class="icon" xmlns="http://www.w3.org/2000/svg" height="16px" viewBox="0 -960 960 960" width="16px" fill="currentColor"><path d="M280-160q-50 0-85-35t-35-85H60l18-80h113q17-19 40-29.5t49-10.5q26 0 49 10.5t40 29.5h167l84-360H182l4-17q6-28 27.5-45.5T264-800h456l-37 160h117l120 160-40 200h-80q0 50-35 85t-85 35q-50 0-85-35t-35-85H400q0 50-35 85t-85 35Zm357-280h193l4-21-74-99h-95l-28 120Zm-19-273 2-7-84 360 2-7 34-146 46-200ZM20-427l20-80h220l-20 80H20Zm80-146 20-80h260l-20 80H100Zm180 333q17 0 28.5-11.5T320-280q0-17-11.5-28.5T280-320q-17 0-28.5 11.5T240-280q0 17 11.5 28.5T280-240Zm400 0q17 0 28.5-11.5T720-280q0-17-11.5-28.5T680-320q-17 0-28.5 11.5T640-280q0 17 11.5 28.5T680-240Z"/></svg> Delivered to your door by March 8</span>
+            </div>
+        </div>
+
+        <div class="main-content">
+            <div class="left-column">
+                <!-- Pricing -->
+                <div class="pricing-section">
+                    <div class="price-row">
+                        <span class="amount">$9</span>
+                        <span class="description">per bag</span>
+                    </div>
+                    <div class="price-row">
+                        <span class="amount">$40</span>
+                        <span class="description">for 5 bags</span>
+                        <span class="savings">Save $5!</span>
+                    </div>
+                    <div class="delivery-note"><svg class="icon" xmlns="http://www.w3.org/2000/svg" height="16px" viewBox="0 -960 960 960" width="16px" fill="currentColor"><path d="M280-160q-50 0-85-35t-35-85H60l18-80h113q17-19 40-29.5t49-10.5q26 0 49 10.5t40 29.5h167l84-360H182l4-17q6-28 27.5-45.5T264-800h456l-37 160h117l120 160-40 200h-80q0 50-35 85t-85 35q-50 0-85-35t-35-85H400q0 50-35 85t-85 35Zm357-280h193l4-21-74-99h-95l-28 120Zm-19-273 2-7-84 360 2-7 34-146 46-200ZM20-427l20-80h220l-20 80H20Zm80-146 20-80h260l-20 80H100Zm180 333q17 0 28.5-11.5T320-280q0-17-11.5-28.5T280-320q-17 0-28.5 11.5T240-280q0 17 11.5 28.5T280-240Zm400 0q17 0 28.5-11.5T720-280q0-17-11.5-28.5T680-320q-17 0-28.5 11.5T640-280q0 17 11.5 28.5T680-240Z"/></svg> Delivery included!</div>
+                </div>
+
+                <!-- How to Order Steps -->
+                <div class="steps-section">
+                    <div class="step">
+                        <div class="step-number">1</div>
+                        <div class="step-content">
+                            <strong>Scan the QR code</strong> with your phone camera
+                        </div>
+                    </div>
+                    <div class="step">
+                        <div class="step-number">2</div>
+                        <div class="step-content">
+                            <strong>Select quantity</strong> — how many bags you need
+                        </div>
+                    </div>
+                    <div class="step">
+                        <div class="step-number">3</div>
+                        <div class="step-content">
+                            <strong>Enter seller name:</strong> Unai Cloutier
+                        </div>
+                    </div>
+                    <div class="step">
+                        <div class="step-number">4</div>
+                        <div class="step-content">
+                            <strong>Pay online</strong> — delivered by March 8!
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+
+            <div class="right-column">
+                <!-- QR Code Section -->
+                <div class="qr-section">
+                    <h2 class="scan-to-order">Scan to Order</h2>
+                    <div class="qr-container">
+                        <img src="compost/qrcode.svg" alt="Scan to order compost">
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Seller Info -->
+        <div class="seller-section">
+            <div class="label">Your Seller</div>
+            <div class="name">Unai Cloutier</div>
+            <div class="label">Questions?</div>
+            <div class="phone">431-330-0043</div>
+        </div>
+
+        <!-- Deadline Banner -->
+        <div class="deadline-banner">
+            <svg class="icon" xmlns="http://www.w3.org/2000/svg" height="24px" viewBox="0 -960 960 960" width="24px" fill="currentColor"><path d="M200-80q-33 0-56.5-23.5T120-160v-560q0-33 23.5-56.5T200-800h40v-80h80v80h320v-80h80v80h40q33 0 56.5 23.5T840-720v560q0 33-23.5 56.5T760-80H200Zm0-80h560v-400H200v400Zm0-480h560v-80H200v80Zm0 0v-80 80Zm280 240q-17 0-28.5-11.5T440-440q0-17 11.5-28.5T480-480q17 0 28.5 11.5T520-440q0 17-11.5 28.5T480-400Zm-160 0q-17 0-28.5-11.5T280-440q0-17 11.5-28.5T320-480q17 0 28.5 11.5T360-440q0 17-11.5 28.5T320-400Zm320 0q-17 0-28.5-11.5T600-440q0-17 11.5-28.5T640-480q17 0 28.5 11.5T680-440q0 17-11.5 28.5T640-400ZM480-240q-17 0-28.5-11.5T440-280q0-17 11.5-28.5T480-320q17 0 28.5 11.5T520-280q0 17-11.5 28.5T480-240Zm-160 0q-17 0-28.5-11.5T280-280q0-17 11.5-28.5T320-320q17 0 28.5 11.5T360-280q0 17-11.5 28.5T320-240Zm320 0q-17 0-28.5-11.5T600-280q0-17 11.5-28.5T640-320q17 0 28.5 11.5T680-280q0 17-11.5 28.5T640-240Z"/></svg>
+            <span class="label">Order Deadline:</span>
+            <span class="date">February 28</span>
+        </div>
+
+        <footer>
+            <img src="compost/logo.jpg" alt="Oak Bay Athletics" class="footer-logo">
+            <p><strong>Thank You</strong> for Supporting Oak Bay High School's Track Tour</p>
+        </footer>
+    </div>
+</body>
+</html>
