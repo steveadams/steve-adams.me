@@ -5,14 +5,16 @@ import { generateSidebar } from "./generateSidebar.js";
 export default defineConfig({
   srcDir: "src",
 
+  outDir: "dist",
+
   title: "Steve Adams",
   description: "Software Developer",
-  
+
   head: [
     // Mux Player web component
     ['script', { src: 'https://cdn.jsdelivr.net/npm/@mux/mux-player' }],
     // Umami analytics (if you want to add it)
-    ['script', { 
+    ['script', {
       defer: '',
       src: 'https://cloud.umami.is/script.js',
       'data-website-id': '4b002139-b9d6-41e6-9479-246b6cdec509'
@@ -44,7 +46,7 @@ export default defineConfig({
       { icon: "bluesky", link: "https://bsky.app/profile/steve-adams.me" },
     ],
   },
-  
+
   markdown: {
     // This will automatically add H1 titles from frontmatter
     attrs: {
@@ -52,7 +54,7 @@ export default defineConfig({
       rightDelimiter: '}'
     }
   },
-  
+
   vite: {
     // Prevent any web fonts from being bundled
     optimizeDeps: {
