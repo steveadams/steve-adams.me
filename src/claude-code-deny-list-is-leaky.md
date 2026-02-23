@@ -181,6 +181,12 @@ Again, this isn't perfect and it suffers from some of the same problems as the g
 
 ## What This Doesn't Solve
 
-To a reasonable degree, this protects against the command-level bypasses described above. It **does not** protect against the same kinds of operations being embedded in scripts, for example. Think of how something like `python3 -c "import subprocess; subprocess.run(['git', 'push'])"` will run just fine, because the Bash command is `python3 -c ...`, not `git push`. What are the odds of this happening? Virtually zero, I think. It's still an interesting vector to consider, though.
+To a reasonable degree, this protects against the command-level bypasses described above. It **does not** protect against the same kinds of operations being embedded in scripts, for example. Think of how something like this:
+
+```python
+python3 -c "import subprocess; subprocess.run(['git', 'push'])"
+```
+
+This will run just fine, because the bash command is `python3 -c ...`, not `git push`. What are the odds of this happening? Virtually zero, I think. It's still an interesting vector to consider, though.
 
 For that, it seems like you'd want the [sandbox layer](https://code.claude.com/docs/en/sandboxing) to restrict network access, so `git push` fails at the transport no matter how it's invoked. I haven't dug in that far yet, but it seems like the next crucial piece of the security puzzle for Claude Code. I'll get there soon. For now, a tested, regex-based hook is a meaningful improvement over a glob that can be defeated by adding `-C`.
