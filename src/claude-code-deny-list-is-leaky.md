@@ -35,23 +35,7 @@ I suspect this is true, and the training and system prompt probably do reinforce
 
 ## How Else Can Claude Break Rules?
 
-In a practically incalculable number of ways. This isn't special knowledge by any means and it's [acknowledged in the documentation](https://code.claude.com/docs/en/permissions#wildcard-patterns):
-
-> Bash permission patterns that try to constrain command arguments are fragile. For example, Bash(curl http://github.com/ *) intends to restrict curl to GitHub URLs, but won’t match variations like:
-> 
->     Options before URL: curl -X GET http://github.com/...
->     Different protocol: curl https://github.com/...
->     Redirects: curl -L http://bit.ly/xyz (redirects to github)
->     Variables: URL=http://github.com && curl $URL
->     Extra spaces: curl http://github.com
-
-> For more reliable URL filtering, consider:
-> 
->     Restrict Bash network tools: use deny rules to block curl, wget, and similar commands, then use the WebFetch tool with WebFetch(domain:github.com) permission for allowed domains
->     Use PreToolUse hooks: implement a hook that validates URLs in Bash commands and blocks disallowed domains
->     Instructing Claude Code about your allowed curl patterns via CLAUDE.md
-> 
-> Note that using WebFetch alone does not prevent network access. If Bash is allowed, Claude can still use curl, wget, or other tools to reach any URL.
+In a practically incalculable number of ways. This isn't special knowledge by any means and it's [acknowledged in the documentation](https://code.claude.com/docs/en/permissions#wildcard-patterns).
 
 Take this example in which `find` seems pretty innocuous and safe:
 
