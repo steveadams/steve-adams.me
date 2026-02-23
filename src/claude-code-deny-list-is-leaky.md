@@ -43,7 +43,7 @@ Take this example in which `find` seems pretty innocuous and safe:
 find ~/my/nice/directory -size +1M -exec rm -rf {} \;
 ```
 
-This tool call might be unlikely to happen, but I the category of problem is very real. The point is that these unsafe commands won't be captured by the glob `Bash(rm -rf*)` because glob patterns a poor strategy for protections against tool calls in general. Your reaction might be to think no 'problem, I'll just use `Bash(*rm -rf*)` so it'll capture that anywhere in the command string', but... This opens a can of worms.
+This tool call might be unlikely to happen, but the category of problem is very real. The point is that these unsafe commands won't be captured by the glob `Bash(rm -rf*)` because glob patterns a poor strategy for protections against tool calls in general. Your reaction might be to think no 'problem, I'll just use `Bash(*rm -rf*)` so it'll capture that anywhere in the command string', but... This opens a can of worms.
 
 What if Claude uses `find ~/my/nice/directory -print0 | xargs -0 rm --recursive --force`? This won't be captured either. So back to the drawing board, we add duplicate patterns for option variants. But then you might realize that Claude can separate the `rm` options like `rm -r -f` as well, and again you're adding more deny rules. You'd need rules for `/bin/rm`, `usr/bin/rm`, or variations in option patterns like `rm -r --force` or `rm --recursive -f`. Clearly the glob approach isn't going to cut it.
 
