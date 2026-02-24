@@ -107,7 +107,7 @@ You'll need to allow these to execute, like so: `chmod +x .claude/hooks/git-guar
 ```
 Beautiful! You can imagine this is just the tip of the iceberg, too. You've got way more power in a bash script than you do with a list of globs.
 
-## Why Bash?
+### Why Bash?
 
 I went through a few iterations trying to find the right approach. TypeScript with Deno came first because I liked the idea of being able to easily test patterns and run the script with as little friction as possible. It works, but it adds a runtime dependency not everyone on my team has, so the ability to share it with them seemed unnecessarily impeded. What good is better security if no one can be bothered to use it? It's basically no security.
 
@@ -115,7 +115,7 @@ That led me to consider plain Node.js with .mjs files, since Claude Code already
 
 Given that the contract is so simple (read JSON from stdin, inspect a string, and exit with a code), it seemed like bash was the only sensible answer remaining. That's what `jq` and `grep` are for, right? Just about everyone has those (you should get [`jq`](https://jqlang.org/) if you don't have it already), so the only cloudy part in my mind was how you'd maintain the testing aspect.
 
-## Testing It
+### Testing It
 
 I figured a hook that I can't test isn't any better than a deny rule I hope works (until it doesn't). A nice thing about this being a bash script is that you can test it with another bash script:
 
