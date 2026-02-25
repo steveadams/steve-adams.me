@@ -6,7 +6,7 @@
   "main": "index.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
-    "dev": "vitepress dev",
+    "dev": "vitepress dev --watch",
     "build": "vitepress build",
     "preview": "vitepress preview"
   },
@@ -21,6 +21,7 @@
   "dependencies": {
     "@catppuccin/vitepress": "^0.1.2",
     "@types/turndown": "^5.0.5",
+    "feed": "^5.2.0",
     "turndown": "^7.2.1"
   }
 }
