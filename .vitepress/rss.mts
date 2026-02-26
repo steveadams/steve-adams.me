@@ -20,7 +20,7 @@ export async function genFeed(config: SiteConfig) {
 
   const posts = await createContentLoader("*.md", {
     includeSrc: false,
-    render: false,
+    render: true,
     excerpt: false,
     transform(rawData) {
       const excludePages = [
@@ -45,12 +45,12 @@ export async function genFeed(config: SiteConfig) {
   }).load();
 
   for (const post of posts) {
-    const { frontmatter, url } = post;
+    const { frontmatter, url, html } = post;
     feed.addItem({
       title: frontmatter.title,
       id: `${siteUrl}${url}`,
       link: `${siteUrl}${url}`,
-      description: frontmatter.description ?? "",
+      description: html ?? "",
       date: new Date(frontmatter.date),
     });
   }
