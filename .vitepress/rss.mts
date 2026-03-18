@@ -34,7 +34,7 @@ export async function genFeed(config: SiteConfig) {
       return rawData
         .filter((page) => {
           const url = page.url.replace(/\.html$/, "");
-          return !excludePages.includes(url) && page.frontmatter.date;
+          return !excludePages.includes(url) && page.frontmatter.date && !page.frontmatter.draft;
         })
         .sort(
           (a, b) =>

@@ -32,6 +32,7 @@ function getAllPosts() {
       }
     })
 
+    if (frontmatter.draft) continue
     if (frontmatter.date && frontmatter.title) {
       posts.push({
         title: frontmatter.title,

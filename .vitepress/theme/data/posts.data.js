@@ -32,6 +32,7 @@ function getAllPosts() {
       }
     })
 
+    if (frontmatter.draft === 'true' || frontmatter.draft === true) continue
     if (frontmatter.date && frontmatter.title) {
       // Estimate reading time (rough calculation)
       const wordCount = content.replace(/^---\n[\s\S]*?\n---/, '').split(/\s+/).length

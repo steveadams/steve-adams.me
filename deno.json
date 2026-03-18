@@ -1,9 +1,14 @@
 {
   "tasks": {
     "dev": "deno run --allow-net --allow-read main.ts",
-    "preview": "deno run --allow-net --allow-read main.ts"
+    "preview": "deno run --allow-net --allow-read main.ts",
+    "generate": "deno run --allow-read --allow-write --allow-net --allow-env scripts/generate-samples.ts",
+    "classify": "deno run --allow-read --allow-write --allow-env scripts/classify-samples.ts"
   },
   "imports": {
-    "@std/http": "jsr:@std/http@^1.0.15"
+    "@std/http": "jsr:@std/http@^1.0.15",
+    "@std/cli": "jsr:@std/cli@^1.0.28",
+    "@std/yaml": "jsr:@std/yaml@^1.0.12",
+    "typescript": "npm:typescript@^5.9.3"
   }
 }

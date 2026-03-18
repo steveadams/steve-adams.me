@@ -17,7 +17,7 @@ export default createContentLoader("*.md", {
           "resume.md",
         ];
         const filename = page.url.split("/").pop() + ".md";
-        return !excludePages.includes(filename) && page.frontmatter.date;
+        return !excludePages.includes(filename) && page.frontmatter.date && !page.frontmatter.draft;
       })
       .sort((a, b) => {
         return (
