@@ -1,0 +1,17 @@
+{
+  "llm": {
+    "model": "qwen3.5",
+    "apiKey": "",
+    "maxTokens": 4096
+  },
+  "timeout": 30000,
+  "maxRetries": 3,
+  "maxIterations": 10,
+  "budgetLimit": 50000,
+  "tools": {
+    "webFetcher": { "enabled": true, "allowedDomains": ["wikipedia.org"] },
+    "textExtractor": { "enabled": true, "maxLength": 5000 },
+    "calculator": { "enabled": true },
+    "fileWriter": { "enabled": false, "outputDir": "./output" }
+  }
+}
