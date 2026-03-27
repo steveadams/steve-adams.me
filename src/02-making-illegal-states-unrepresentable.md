@@ -42,7 +42,7 @@ function handleResult(result: ToolResult) {
 
 An LLM writing a new handler generates something that looks like this. It covers the cases it can infer from context. It misses one — maybe the case where `ok` is `false` but `error` is also absent (a tool that failed without producing an error message). The code compiles. The missed case falls through silently. You find out in production.
 
-Now scale this up. Organon's harness has multiple failure modes: the LLM returned garbage, the tool wasn't found, the tool's arguments didn't match its schema, the tool timed out, the tool ran but failed, the budget was exhausted. Each has a different recovery path. If these are represented as a bag of optional fields on a generic error object, every handler must independently reconstruct which failure mode it's dealing with. Every handler is a place for a bug. Every new failure mode is a silent regression in every existing handler.
+Now scale this up. The DarwinKit configuration agent's validation step produces structured violations. A latitude outside [-90, 90] is a `RangeViolation`. A date in DD/MM/YYYY instead of ISO 8601 is a `FormatViolation`. A missing `basisOfRecord` is a `RequiredFieldViolation`. Each has a different recovery path — a range violation means the transformation logic is wrong, a format violation means the date parsing needs rewriting, a required field violation might mean asking the user because the value can't be inferred from the source data. And validation failures are just one error type. The source file might not parse. The LLM might hallucinate a Darwin Core term. The CLI might error out. The budget might be exhausted. If these are represented as a bag of optional fields on a generic error object, every handler must independently reconstruct which failure mode it's dealing with. Every handler is a place for a bug. Every new failure mode is a silent regression in every existing handler.
 
 ## The Pattern
 
@@ -78,9 +78,11 @@ function handleResult(result: ToolResult): Recovery {
 
 If you add a new variant to `ToolResult`, every `switch` that doesn't handle it fails to compile. The new case can't be silently ignored — the compiler forces you to decide what to do with it.
 
-## Organon's Error Model
+## The Configuration Agent's Error Model
 
-Organon's harness needs a richer error model than `ToolResult`. The agent lifecycle has multiple failure points, each with different recovery semantics. Plain TypeScript discriminated unions handle this cleanly — but Effect's `Data.TaggedError` adds something: each error class carries its `_tag` discriminant by construction. It's intrinsic to the definition, not a convention someone can forget.
+The DarwinKit configuration agent needs a richer error model than `ToolResult`. The agent workflow — collect sources, classify columns, generate config, validate — has failure points at every step, each with different recovery semantics. The validation step alone produces several distinct violation types, and the harness needs to route each one to a specific recovery path. This is where discriminated unions earn their keep: the nested tagged union — violation types inside a validation failure — is the pattern composing with itself, and the place where both lenses of the series thesis converge most sharply.
+
+Plain TypeScript discriminated unions handle this cleanly — but Effect's `Data.TaggedError` adds something: each error class carries its `_tag` discriminant by construction. It's intrinsic to the definition, not a convention someone can forget.
 
 ### Plain TypeScript First
 
@@ -88,44 +90,99 @@ The union, using pure TS:
 
 ```ts
 type HarnessError =
-  | { readonly _tag: "LLMParseFailure"; readonly raw: string; readonly parseError: string }
-  | { readonly _tag: "ToolNotFound"; readonly requestedTool: string; readonly available: string[] }
-  | { readonly _tag: "ToolSchemaViolation"; readonly tool: string; readonly violations: string[] }
-  | { readonly _tag: "ToolTimeout"; readonly tool: string; readonly elapsed: number }
-  | { readonly _tag: "ToolExecutionError"; readonly tool: string; readonly message: string }
+  | { readonly _tag: "SourceParseFailure"; readonly path: string; readonly reason: string }
+  | { readonly _tag: "ClassificationFailure"; readonly column: string; readonly reason: string }
+  | { readonly _tag: "UnknownDwCTerm"; readonly term: string; readonly available: string[] }
+  | { readonly _tag: "ConfirmationTimeout"; readonly column: string; readonly elapsed: number }
+  | { readonly _tag: "ConfigGenerationError"; readonly message: string }
+  | { readonly _tag: "ValidationFailure"; readonly violations: FieldViolation[]; readonly configPath: string }
+  | { readonly _tag: "ShellError"; readonly command: string; readonly exitCode: number; readonly stderr: string }
   | { readonly _tag: "BudgetExhausted"; readonly dimension: "tokens" | "calls" | "time"; readonly limit: number; readonly used: number };
 ```
 
-This works. Every handler must match all six variants. The compiler enforces it.
+This works. Every handler must match all eight variants. The compiler enforces it.
+
+### Nested Tagged Unions — the Centerpiece
+
+`ValidationFailure` carries `FieldViolation[]` — but what is a `FieldViolation`? DarwinKit's validation produces different *kinds* of violation, each with different data and a different recovery path. This is a tagged union inside a tagged union — the pattern composing with itself:
+
+```ts
+type FieldViolation =
+  | { readonly _tag: "RangeViolation"; readonly field: string; readonly value: number; readonly min: number; readonly max: number }
+  | { readonly _tag: "FormatViolation"; readonly field: string; readonly value: string; readonly expectedFormat: string }
+  | { readonly _tag: "RequiredFieldViolation"; readonly field: string }
+  | { readonly _tag: "UniquenessViolation"; readonly field: string; readonly duplicateValue: string }
+  | { readonly _tag: "ForeignKeyViolation"; readonly field: string; readonly value: string; readonly referencedTable: string };
+```
+
+Each violation carries exactly the data needed to describe what went wrong. A `RangeViolation` has `min` and `max` — you know the bounds that were exceeded. A `FormatViolation` has `expectedFormat` — you know what the value should have looked like. A `RequiredFieldViolation` just has `field` — there's nothing else to say.
+
+When the harness receives a `ValidationFailure`, it doesn't just know that validation failed — it can iterate the violations and generate a specific correction plan for the LLM. A `FormatViolation` on `eventDate` means "rewrite the date transformation — the current output is DD/MM/YYYY, the expected format is ISO 8601." A `RangeViolation` on `decimalLatitude` means "the transformation is producing values outside [-90, 90] — check the source column for unit mismatches or swapped lat/lng." A `RequiredFieldViolation` on `basisOfRecord` means "this field can't be inferred from the source data — ask the user." Each violation type routes to a different recovery path, and the tagged union ensures the harness can't confuse them:
+
+```ts
+function describeViolation(v: FieldViolation): string {
+  switch (v._tag) {
+    case "RangeViolation":
+      return `${v.field}: value ${v.value} outside range [${v.min}, ${v.max}]`;
+    case "FormatViolation":
+      return `${v.field}: "${v.value}" doesn't match expected format ${v.expectedFormat}`;
+    case "RequiredFieldViolation":
+      return `${v.field}: required but missing`;
+    case "UniquenessViolation":
+      return `${v.field}: duplicate value "${v.duplicateValue}"`;
+    case "ForeignKeyViolation":
+      return `${v.field}: "${v.value}" not found in ${v.referencedTable}`;
+    default:
+      const _exhaustive: never = v;
+      return _exhaustive;
+  }
+}
+```
+
+The runtime value of this is immediate: the harness interprets each violation type correctly and generates targeted correction instructions instead of a generic "validation failed, try again." The LLM receiving those instructions can act on specifics — it knows *which* field, *what* was wrong, and *what the expected shape is*.
+
+The development value is equally sharp. An LLM generating a new violation handler must handle every variant — the exhaustive `switch` plus the `never` default make an unhandled case a compile error. And when the model evolves — say you add `ForeignKeyViolation` because OBIS's Event/Occurrence/MeasurementOrFact relationships introduce referential integrity constraints — every incomplete handler breaks at compile time. The compiler tells you exactly which files need updating. In code a human wrote and in code an LLM generated.
+
+The pattern composes. The outer union (`HarnessError`) tells you *what went wrong*. The inner union (`FieldViolation`) tells you *how it went wrong*. Both are exhaustively matched. Both are compiler-enforced.
 
 ### Effect's TaggedError — the Mature Version
 
 ```ts
 import { Data } from "effect";
 
-class LLMParseFailure extends Data.TaggedError("LLMParseFailure")<{
-  readonly raw: string;
-  readonly parseError: string;
+class SourceParseFailure extends Data.TaggedError("SourceParseFailure")<{
+  readonly path: string;
+  readonly reason: string;
 }> {}
 
-class ToolNotFound extends Data.TaggedError("ToolNotFound")<{
-  readonly requestedTool: string;
+class ClassificationFailure extends Data.TaggedError("ClassificationFailure")<{
+  readonly column: string;
+  readonly reason: string;
+}> {}
+
+class UnknownDwCTerm extends Data.TaggedError("UnknownDwCTerm")<{
+  readonly term: string;
   readonly available: ReadonlyArray<string>;
 }> {}
 
-class ToolSchemaViolation extends Data.TaggedError("ToolSchemaViolation")<{
-  readonly tool: string;
-  readonly violations: ReadonlyArray<string>;
-}> {}
-
-class ToolTimeout extends Data.TaggedError("ToolTimeout")<{
-  readonly tool: string;
+class ConfirmationTimeout extends Data.TaggedError("ConfirmationTimeout")<{
+  readonly column: string;
   readonly elapsed: number;
 }> {}
 
-class ToolExecutionError extends Data.TaggedError("ToolExecutionError")<{
-  readonly tool: string;
+class ConfigGenerationError extends Data.TaggedError("ConfigGenerationError")<{
   readonly message: string;
+}> {}
+
+class ValidationFailure extends Data.TaggedError("ValidationFailure")<{
+  readonly violations: ReadonlyArray<FieldViolation>;
+  readonly configPath: string;
+}> {}
+
+class ShellError extends Data.TaggedError("ShellError")<{
+  readonly command: string;
+  readonly exitCode: number;
+  readonly stderr: string;
 }> {}
 
 class BudgetExhausted extends Data.TaggedError("BudgetExhausted")<{
@@ -135,21 +192,26 @@ class BudgetExhausted extends Data.TaggedError("BudgetExhausted")<{
 }> {}
 ```
 
-The `_tag` is part of the class definition. You can't construct a `ToolNotFound` without it being tagged — it's not a convention you remember to follow, it's a structural fact about the class.
+The `_tag` is part of the class definition. You can't construct an `UnknownDwCTerm` without it being tagged — it's not a convention you remember to follow, it's a structural fact about the class.
 
 Applied to Effect's error channel, this means a function's type signature declares exactly which errors it can produce:
 
 ```ts
-type ToolDispatch = Effect<ToolSuccess, ToolNotFound | ToolSchemaViolation | ToolTimeout | ToolExecutionError, ToolExecution>;
+type ClassifyColumns = Effect<
+  ColumnMapping[],
+  ClassificationFailure | UnknownDwCTerm | BudgetExhausted,
+  LLMService
+>;
 ```
 
-The caller must handle each variant. `.catch(() => null)` on a tagged error union is a type error — the error channel demands explicit handling of each case.
+An LLM generating a caller for this function sees the error channel in the type — three specific tagged errors, not a generic `Error`. It must handle each variant. `.catch(() => null)` on a tagged error union is a type error — the error channel demands explicit handling of each case. The type signature is the contract, visible to both the compiler and to any LLM reading the function.
 
-Each error carries the data needed for recovery:
+Each error carries the data needed for recovery at runtime:
 
-- `LLMParseFailure` carries the raw response — the recovery path can send it back to the LLM with "this didn't parse, try again."
-- `ToolNotFound` carries the available tools — the recovery can tell the LLM "you asked for X, available tools are [Y, Z]."
-- `BudgetExhausted` carries which dimension was exceeded and by how much — the recovery can report partial results with an explanation.
+- `UnknownDwCTerm` carries the available terms — the LLM hallucinated `"decimalLongitude"` but the valid term is `"verbatimLongitude"`. The recovery path can tell the LLM "you used `decimalLongitude`, available terms are [...]" and the LLM can self-correct.
+- `SourceParseFailure` carries the path and reason — the recovery can tell the LLM "this file couldn't be parsed as CSV, here's why."
+- `ValidationFailure` carries the typed violations from the nested union — the recovery generates a specific correction plan per violation, not a generic retry.
+- `BudgetExhausted` carries which dimension was exceeded (`tokens`, `calls`, or `time`) and by how much — the recovery can report partial results with an explanation of what limit was hit.
 
 The recovery path is informed by the error variant. Not "something went wrong" but "this specific thing went wrong, here's the context, here's what to do about it."
 
@@ -158,70 +220,61 @@ The recovery path is informed by the error variant. Not "something went wrong" b
 **Before — generic error handling:**
 
 ```ts
-async function dispatchTool(call: ToolCall): Promise<string> {
+async function classifyAndMap(
+  columns: string[],
+  targetTerms: string[]
+): Promise<Record<string, string>> {
   try {
-    const tool = tools[call.name];
-    if (!tool) return "Tool not found";
-    const result = await tool.execute(call.arguments);
-    return JSON.stringify(result);
+    const response = await llm.classify(columns);
+    const mapping: Record<string, string> = {};
+    for (const [col, term] of Object.entries(response)) {
+      if (targetTerms.includes(term)) {
+        mapping[col] = term;
+      }
+      // unknown term? silently dropped.
+    }
+    return mapping;
   } catch (e) {
-    return `Error: ${e instanceof Error ? e.message : "unknown"}`;
+    return {}; // classification failed — return empty mapping, no one knows
   }
 }
 ```
 
 An LLM generates this. It handles the happy path and has a generic catch. It works for a while. Then:
 
-- Budget tracking is added. Nothing in this function accounts for it — the budget is exhausted silently.
-- Schema validation for tool arguments is added. This function doesn't check schemas — malformed arguments reach the tool.
-- Rate limiting is needed. Nothing here knows about it.
+- The LLM hallucinates a Darwin Core term. Nothing in this function flags it — the term is silently dropped and the column goes unmapped.
+- A source file has encoding issues. The LLM gets garbage text. Classification "succeeds" with nonsense mappings.
+- A user confirmation gate is added for low-confidence mappings. This function doesn't know about gates — it returns without waiting.
 
 Each addition requires finding and modifying this function (and every other handler) by hand. The LLM that wrote it has moved on. The next developer — or the next LLM invocation — doesn't know what's missing.
 
 **After — tagged error union:**
 
 ```ts
-function dispatchTool(
-  call: ToolCallRequest
-): Effect<ToolSuccess, ToolNotFound | ToolSchemaViolation | ToolTimeout | ToolExecutionError, ToolExecution> {
+function classifyAndMap(
+  columns: ReadonlyArray<string>,
+  targetTerms: ReadonlyArray<string>
+): Effect<
+  ColumnMapping[],
+  ClassificationFailure | UnknownDwCTerm | ConfirmationTimeout,
+  LLMService | UserPromptService
+> {
   // Every failure mode is a specific tagged error
   // The return type declares exactly what can go wrong
   // The caller must handle each variant
 }
 ```
 
-An LLM writing a caller for `dispatchTool` sees the error channel in the type. It can't ignore `ToolTimeout` — the compiler won't let it. The error model is the type signature. Reading the function is reading the contract.
+An LLM writing a caller for `classifyAndMap` sees the error channel in the type. It can't ignore `UnknownDwCTerm` — the compiler won't let it. The error model is the type signature. Reading the function is reading the contract.
 
 ## Scaling
 
-You realize you need `RateLimited` in the error channel. Rate limiting wasn't part of the original design, but the LLM API started returning 429s in production.
+The nested union already demonstrated how adding `ForeignKeyViolation` breaks every incomplete handler at compile time. The same dynamic applies at the outer level. Add `ConfirmationTimeout` to the `HarnessError` union because the scientist might not respond to a confirmation gate — the compiler flags every handler that doesn't account for it. Six errors, four files, each telling you exactly what to update.
 
-You add the variant:
+Without the union: you grep for `catch` blocks. You find five call sites that need updating. The sixth — in a test helper that catches errors and returns a default mapping — doesn't match the grep pattern. It silently swallows the new error and proceeds with unconfirmed mappings. Tests pass. The bug reaches production.
 
-```ts
-class RateLimited extends Data.TaggedError("RateLimited")<{
-  readonly retryAfter: number;
-  readonly endpoint: string;
-}> {}
-```
-
-And add it to the relevant function signatures.
-
-The compiler reports errors. Every handler that doesn't account for rate limiting is flagged. Concretely:
-
-- `src/harness/orchestrator.ts` — the main loop's error handler
-- `src/harness/orchestrator.ts` — the retry logic
-- `src/tools/dispatcher.ts` — the tool dispatch error mapper
-- `src/tools/llm-caller.ts` — the LLM call wrapper
-- `test/harness/orchestrator.test.ts` — the orchestrator test's error assertions
-- `test/tools/dispatcher.test.ts` — the dispatcher test's error assertions
-
-Six errors. Four files. Each one tells you exactly what to update.
-
-Without the union: you grep for `catch` blocks. You find five call sites that need updating. The sixth — in a test helper that catches errors and returns a default value — doesn't match the grep pattern. It silently swallows `RateLimited` errors. Tests pass. The bug reaches production. You find it three weeks later when the agent enters an infinite retry loop against a rate-limited API.
-
-The "skips validation" region from Post 1 is already gone. Now highlight programs that forget error cases, silently swallow failures, catch generic `Error` instead of specific variants, or have handlers that don't account for all failure modes. Apply the "illegal states" constraint — that region disappears. The valid space visibly shrinks. Two classes of bug are now structurally eliminated.
+This works at both levels. At runtime, every new error variant forces explicit recovery logic — no silent fallthrough. At development time, whether it's a human or an LLM writing the next handler, the compiler rejects incomplete matches. The "skips validation" region from Post 1 is already gone. Now highlight programs that forget error cases, silently swallow failures, catch generic `Error` instead of specific variants, or have handlers that don't account for all failure modes. Apply the "illegal states" constraint — that region disappears. The valid space visibly shrinks. Two classes of bug are now structurally eliminated.
 
 ---
 
-*Next: [Encoding Protocols in State](/encoding-protocols-in-state) — building Organon's conversation accumulator, where calling methods in the wrong order is a compile error.*
+*Next: [State Machines and Lifecycle](/state-machines-and-lifecycle) — the DarwinKit configuration agent's lifecycle as an XState machine with bounded loops and stall detection.*
