@@ -1,0 +1,143 @@
+// Folder-specific settings for DarwinKit
+//
+// For a full list of overridable settings, and general information on folder-specific settings,
+// see the documentation: https://zed.dev/docs/configuring-zed#settings-files
+{
+  // Enable format on save
+  "format_on_save": "on",
+  "code_actions_on_format": {
+    "source.organizeImports": true,
+  },
+  // Language-specific configurations
+  "languages": {
+    "TypeScript": {
+      // Use Deno's built-in formatter for TypeScript files
+      "formatter": "language_server",
+      // Run Deno fixes and organize imports on format
+      "code_actions_on_format": {
+        "source.organizeImports": true
+      },
+      // Use Deno language server for TypeScript support
+      "language_servers": [
+        "deno",
+        "!vtsls",
+        "!typescript-language-server"
+      ]
+    },
+    "TSX": {
+      // Use Deno's built-in formatter for TSX files
+      "formatter": "language_server",
+      // Run Deno fixes and organize imports on format
+      "code_actions_on_format": {
+        "source.organizeImports": true
+      },
+      // Use Deno language server for TSX support
+      "language_servers": [
+        "deno",
+        "!vtsls",
+        "!typescript-language-server"
+      ]
+    },
+    "JavaScript": {
+      "code_actions_on_format": {
+        "source.organizeImports": true
+      },
+      // Language servers for JavaScript
+      "language_servers": [
+        "vtsls",
+      ]
+    }
+  },
+  // LSP (Language Server Protocol) configurations
+  "lsp": {
+    "yaml-language-server": {
+      "settings": {
+        "yaml": {
+          "schemas": {
+            "./packages/domain/src/specs/generated/darwinkit.schema.json": "**/*darwinkit.yaml"
+          }
+        }
+      }
+    },
+    // vtsls configuration (Vue/TypeScript Language Server - faster than typescript-language-server)
+    "vtsls": {
+      "settings": {
+        "typescript": {
+          // Enable inlay hints for better code readability
+          "inlayHints": {
+            "parameterNames": {
+              "enabled": "literals"
+            },
+            "parameterTypes": {
+              "enabled": false
+            },
+            "variableTypes": {
+              "enabled": false
+            },
+            "propertyDeclarationTypes": {
+              "enabled": false
+            },
+            "functionLikeReturnTypes": {
+              "enabled": true
+            },
+            "enumMemberValues": {
+              "enabled": true
+            }
+          },
+          // Preferences
+          "preferences": {
+            "includePackageJsonAutoImports": "auto",
+            "importModuleSpecifier": "relative"
+          },
+          // Memory limit for TypeScript server (16GB for large projects)
+          "tsserver": {
+            "maxTsServerMemory": 8192
+          },
+          // Update imports on file move
+          "updateImportsOnFileMove": {
+            "enabled": "always"
+          }
+        },
+        "javascript": {
+          // Enable inlay hints for JavaScript too
+          "inlayHints": {
+            "parameterNames": {
+              "enabled": "literals"
+            },
+            "parameterTypes": {
+              "enabled": false
+            },
+            "variableTypes": {
+              "enabled": false
+            },
+            "propertyDeclarationTypes": {
+              "enabled": false
+            },
+            "functionLikeReturnTypes": {
+              "enabled": true
+            },
+            "enumMemberValues": {
+              "enabled": true
+            }
+          },
+          // Preferences
+          "preferences": {
+            "includePackageJsonAutoImports": "auto",
+            "importModuleSpecifier": "relative"
+          },
+          // Update imports on file move
+          "updateImportsOnFileMove": {
+            "enabled": "always"
+          }
+        }
+      }
+    }
+  },
+  // Tab and indentation settings
+  "tab_size": 2,
+  "hard_tabs": false,
+  // File exclude patterns (don't show these in file tree)
+  "file_scan_exclusions": [
+    "**/.git",
+  ]
+}

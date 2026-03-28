@@ -2,7 +2,7 @@
 title: "Program Verification"
 date: "2026-03-17T00:00:00.000Z"
 slug: "verification"
-description: "Verifying the DarwinKit configuration agent through property-based testing, model-based testing, and fault injection."
+description: "Verifying the Darwin Core Archive agent through property-based testing, model-based testing, and fault injection."
 draft: true
 ---
 
@@ -12,7 +12,7 @@ draft: true
 
 ## The Problem
 
-Post 6 showed that the specification constrains generation --- the compiler catches structural violations, and the review surface narrows to genuine design decisions. But compiled, type-checked code is not necessarily correct. The classifier might produce valid `SemanticClassification` values that happen to map every column to the wrong Darwin Core term. The state machine might accept a transition sequence that's valid per the definition but produces garbage output. Verification audits what remains after the structural constraints have done their work.
+Post 6 showed that the specification constrains generation --- the compiler catches structural violations, and the review surface narrows to genuine design decisions. But compiled, type-checked code is not necessarily correct. The EML composer might produce valid XML that happens to describe the wrong geographic coverage. The state machine might accept a transition sequence that's valid per the definition but produces garbage output. Verification audits what remains after the structural constraints have done their work.
 
 This post covers three testing strategies. Each targets a specific architectural layer. Each is derived from or checked against the definitions from Post 6. The tests don't exist independently of the architecture --- they're consequences of it.
 
@@ -20,61 +20,66 @@ This post covers three testing strategies. Each targets a specific architectural
 
 ### What it targets: Parse boundaries (Post 1)
 
-Property-based testing generates thousands of random inputs and checks that invariants hold for all of them. It doesn't test specific examples --- it tests properties. "For all possible inputs, the parser either produces a valid typed value or rejects with a specific tagged error. No third outcome."
+Property-based testing generates thousands of random inputs and checks that invariants hold for all of them. It doesn't test specific examples --- it tests properties. "For all possible inputs, the composer either produces valid XML or rejects with a specific tagged error. No third outcome."
 
-This strategy exists to hammer the parse boundaries from Post 1. The schema defines what's valid. Property tests verify that the decoder actually enforces it --- that a confidence score of 1.2 is rejected, that a hallucinated DwC term is caught, that a malformed config fails to decode. This is verification across a space of inputs far larger than any human would write by hand.
+This strategy exists to hammer the parse boundaries from Post 1. The schema defines what's valid. Property tests verify that the composers and generators actually enforce it --- that a bounding box with inverted coordinates is rejected, that a field name mismatch between meta.xml and CSV is caught, that EML with fabricated taxa fails validation. This is verification across a space of inputs far larger than any human would write by hand.
 
 ### The Properties
 
-**Column classification.** Generate random CSV column samples: headers with plausible names, headers with garbage, numeric columns, text columns, mixed-type columns, empty columns, columns with special characters and Unicode.
+**EML generation.** Generate random sets of confirmed metadata: geographic bounding boxes with valid and invalid coordinate ranges, temporal coverages with varying date formats, taxonomic coverages with real and fabricated species names, contact elements with missing fields.
 
-Property: for all CSV column samples, the classifier produces a valid `SemanticClassification` or rejects with `ClassificationFailure`. No exception. No partial classification. No hallucinated term reaching the mapping phase.
-
-```ts
-fc.assert(
-  fc.property(arbitraryColumnSample, (sample) => {
-    const result = Schema.decodeUnknownEither(ClassificationSchema)(
-      classify(sample)
-    );
-    return Either.isRight(result) || Either.isLeft(result);
-    // tautological on its own — the real assertions check:
-    // - Right values are valid SemanticClassification members
-    // - Left values are ClassificationFailure with meaningful diagnostics
-    // - no side effects occur during classification
-  })
-);
-```
-
-The interesting part is the *generator*. `arbitraryColumnSample` produces inputs that are plausible --- structurally similar to real biodiversity data columns but with targeted corruptions. A column header "decimalLatitude" with text values. A column with a valid header but only nulls. A header that looks like a Darwin Core term but has a typo. The generator is informed by the schema --- it knows the valid shape and systematically deforms it.
-
-**DwC term validation.** Generate random Darwin Core term references: valid terms, terms with typos, terms from obsolete versions of the standard, entirely fabricated terms that sound plausible (`coordinatePrecisionMeters`, `habitatClassification`, `specimenPreservationType`).
-
-Property: for all generated DwC term references, the term exists in the DarwinKit spec registry or is rejected with a specific error naming the invalid term and suggesting alternatives.
+Property: for all sets of confirmed metadata, the EML composer produces XML that validates against the EML schema or rejects with a typed error. No malformed XML escaping to disk. No silent schema violations.
 
 ```ts
 fc.assert(
-  fc.property(arbitraryDwCTermRef, (termRef) => {
-    const result = lookupTerm(termRef);
+  fc.property(arbitraryConfirmedMetadata, (metadata) => {
+    const result = Effect.runSyncExit(composeEML(metadata));
     return (
-      (result._tag === "Known" && specRegistry.has(result.term)) ||
-      (result._tag === "Unknown" && result.suggestions.length >= 0)
+      (Exit.isSuccess(result) && validateAgainstEMLSchema(result.value)) ||
+      Exit.isFailure(result)
+    );
+    // the real assertions also check:
+    // - Success values pass the EML XML Schema
+    // - Failure values are SchemaViolation or CompletenessViolation with diagnostics
+    // - no side effects occur during composition
+  })
+);
+```
+
+The interesting part is the *generator*. `arbitraryConfirmedMetadata` produces inputs that are plausible --- structurally similar to real biodiversity metadata but with targeted corruptions. A bounding box where west longitude exceeds east. A temporal coverage with end date before start date. A contact element with an email address but no name. The generator is informed by the schema --- it knows the valid shape and systematically deforms it.
+
+**Meta.xml generation.** Generate random archive structures: varying numbers of extension files, different core types, CSV files with headers in different casing conventions, fields with and without defined terms.
+
+Property: for all archive structures, the generated meta.xml declares fields that exist in the actual CSV headers. Every `<field>` element in meta.xml corresponds to a column that's present in the data file it references.
+
+```ts
+fc.assert(
+  fc.property(arbitraryArchiveStructure, (structure) => {
+    const metaXml = generateMetaXml(structure);
+    const declaredFields = parseFieldDeclarations(metaXml);
+    return declaredFields.every(
+      (field) =>
+        structure.files[field.filePath].headers.includes(field.term) ||
+        structure.files[field.filePath].headers.includes(
+          field.term.toLowerCase()
+        )
     );
   })
 );
 ```
 
-This catches a category of bug that's invisible to type-checking: the classifier returns a `SemanticClassification` whose term field passes the schema (it's a string) but doesn't correspond to any real Darwin Core term. The property test verifies that the registry boundary is airtight.
+This catches a category of bug that's invisible to type-checking: the LLM generates a meta.xml with camelCase field names (`scientificName`) but the actual CSV header is lowercase (`scientificname`). The meta.xml is valid XML. The field name is a real Darwin Core term. But the archive is broken --- the declared field doesn't match the actual header.
 
-**Config generation.** Generate random sets of validated column mappings: varying numbers of columns, different combinations of Darwin Core terms, optional fields present and absent, multiple source files with overlapping terms.
+**Cross-validation.** Generate random archives with taxonomic data: CSV files containing species occurrence records, EML documents with taxonomic coverage sections, varying overlap between taxa in data and taxa declared in metadata.
 
-Property: for all sets of validated column mappings, the generated `darwinkit.yaml` is decodable by DarwinKit's `workspaceConfigSchema`. The config generator's output is always structurally valid --- if it produces output at all, that output passes schema validation.
+Property: for all generated archives, the taxonomic coverage in EML reflects species actually present in the data. The taxa listed in the EML's `taxonomicCoverage` element are values found in the data, not column header names or inferred categories.
 
 ```ts
 fc.assert(
-  fc.property(arbitraryValidatedMappings, (mappings) => {
-    const config = generateConfig(mappings);
-    const decoded = Schema.decodeUnknownEither(workspaceConfigSchema)(config);
-    return Either.isRight(decoded);
+  fc.property(arbitraryArchiveWithTaxa, (archive) => {
+    const emlTaxa = extractTaxaCoverage(archive.eml);
+    const dataTaxa = extractTaxaFromData(archive.coreFile);
+    return emlTaxa.every((taxon) => dataTaxa.includes(taxon));
   })
 );
 ```
@@ -83,20 +88,46 @@ fc.assert(
 
 Every property failure produces a minimal counterexample. fast-check shrinks the failing input to the smallest case that still fails.
 
-"For all column samples, the classifier produces a valid classification or rejects" fails on:
+**EML generation** fails on:
 
 ```ts
 {
-  header: "depth_m",
-  values: ["12.5", "shallow", "7", "", "deep", "3.2"]
+  geographic: {
+    westBoundingCoordinate: 15.5,
+    eastBoundingCoordinate: 10.2,
+    // west > east — invalid bounding box
+  }
 }
 ```
 
-The counterexample is specific: a column with mixed numeric and text values classified as `decimalLatitude`. The generated config passes schema validation --- `decimalLatitude` is a valid DwC term, and the config structure is correct. But it fails DarwinKit's `FormatConstraint` at runtime, because `"shallow"` and `"deep"` aren't decimal numbers.
+The counterexample is specific: a metadata record with a geographic bounding box where the western boundary exceeds the eastern boundary. The composer generates XML --- the coordinates are valid numbers, the element structure is correct. But the EML schema rejects it because the bounding box is geometrically invalid.
 
-The bug is in the boundary between classification (which accepted the column) and validation (which rejected the values). The classifier saw numeric-looking data and inferred a numeric DwC term, but didn't account for the non-numeric entries. The fix: tighten the classifier to check value-type consistency, or flag mixed-type columns for user confirmation.
+**Meta.xml generation** fails on:
 
-The counterexample is structured, actionable feedback. Not "the test failed" but "here's the minimal input that broke the property, here's which boundary it crossed, here's what went wrong." An LLM can use this to self-correct: the failing input, the expected behavior, and the constraint it violated are all present. The repair is targeted, not exploratory.
+```ts
+{
+  extensionFile: "identification.csv",
+  headers: ["scientificname", "identifiedby", "dateidentified"],
+  metaXmlFields: ["scientificName", "identifiedBy", "dateIdentified"]
+  // camelCase in meta.xml, lowercase in CSV
+}
+```
+
+The LLM-generated meta.xml uses standard Darwin Core camelCase (`scientificName`) but the CSV header is lowercase (`scientificname`). The meta.xml is well-formed XML. The field names are valid Darwin Core terms. But the archive is broken --- the declared fields don't match the actual headers.
+
+**Cross-validation** fails on:
+
+```ts
+{
+  emlTaxonomicCoverage: ["scientificName", "kingdom", "phylum"],
+  // these are column headers, not species names
+  actualSpeciesInData: ["Quercus robur", "Pinus sylvestris", "Betula pendula"]
+}
+```
+
+The EML lists taxa inferred from column headers rather than actual values --- it claims coverage of "scientificName" the column rather than "Quercus robur" the species. The EML is valid XML. The taxonomic coverage element is structurally correct. But the content is semantically wrong --- the metadata describes the data's shape instead of its contents.
+
+Each counterexample is structured, actionable feedback. Not "the test failed" but "here's the minimal input that broke the property, here's which boundary it crossed, here's what went wrong." An LLM can use this to self-correct: the failing input, the expected behavior, and the constraint it violated are all present. The repair is targeted, not exploratory.
 
 ## Strategy 2: Model-Based Testing (XState)
 
@@ -110,19 +141,15 @@ Adding a state to the machine automatically generates new paths that exercise it
 
 ### The Paths
 
-**Happy path.** `idle → [START] → collecting → [SOURCES_FOUND] → classifying → [ALL_CLASSIFIED_HIGH] → mapping → [MAPPINGS_READY] → generating → [CONFIG_WRITTEN] → validating → [VALIDATION_PASS] → complete`.
+**Happy path.** `idle → inspecting → structuring → gathering → confirming → generating → validating → complete`.
 
-Assert: the context at each stage reflects the expected state. Assert: each event carries valid data for its transition. Assert: the final state is `complete` with a valid configuration.
+Assert: the context at each stage reflects the expected state. Assert: each event carries valid data for its transition. Assert: the final state is `complete` with a valid archive.
 
-**Confirmation path.** `idle → collecting → classifying → [HAS_LOW_CONFIDENCE] → confirming → [GATES_CLEARED] → mapping → generating → validating → complete`.
+**Confirmation rejection.** `gathering → confirming → [USER_REJECTED] → gathering → confirming → [CONFIRMED] → generating`.
 
-Assert: `lowConfidenceCount` is set on the transition to `confirming`. Assert: `gatesCleared` increments when the user approves. Assert: the confirmation gate cannot be skipped --- there is no transition from `classifying` to `mapping` when low-confidence columns exist without going through `confirming`.
+The user rejects the inferred bounding box. The machine returns to `gathering`, the agent re-infers geographic coverage from the data, and the user confirms the corrected values. Assert: the machine re-enters `gathering` on rejection. Assert: re-inference can produce different metadata (the agent retries with adjusted parameters). Assert: the confirmation gate cannot be skipped --- there is no transition from `gathering` to `generating` without passing through `confirming`.
 
-**User rejection loop.** `classifying → [HAS_LOW_CONFIDENCE] → confirming → [USER_REJECTED] → classifying → [HAS_LOW_CONFIDENCE] → confirming → [GATES_CLEARED] → mapping`.
-
-Assert: the machine re-enters `classifying` on rejection. Assert: reclassification can produce different results (the classifier retries with different parameters). Assert: the loop terminates naturally --- either the classifier improves or the user accepts.
-
-**Revision loop.** `validating → [VALIDATION_FAIL] → revising → [REVISED] → generating → [CONFIG_WRITTEN] → validating → [VALIDATION_PASS] → complete`.
+**Revision loop.** `validating → revising → generating → validating → complete`.
 
 Assert: `recordRevisionOutcome` fires on the transition to `revising`. Assert: `revisionRound` increments. Assert: `stallConfidence` is recomputed from the sliding window. Assert: the final validation passes.
 
@@ -136,23 +163,25 @@ Assert: this holds regardless of the specific violations or revision attempts. T
 
 ### What it targets: The error model (Post 2)
 
-Fault injection triggers every tagged error variant deliberately. A deliberately bad config with dates in the wrong format. A hallucinated DwC term injected into classification output. A simulated user timeout. The goal: verify that each error is handled, reaches the correct state, and produces the correct recovery behavior.
+Fault injection triggers every tagged error variant deliberately. Deliberately bad EML with missing required elements. A meta.xml with field names that don't match CSV headers. A simulated user timeout. The goal: verify that each error is handled, reaches the correct state, and produces the correct recovery behavior.
 
 ### The Injections
 
-**`ValidationFailure`:** Provide a deliberately bad configuration --- a `darwinkit.yaml` with an `eventDate` formatted as `DD/MM/YYYY` instead of ISO 8601, a `decimalLatitude` outside the valid range, a missing `basisOfRecord`. Run DarwinKit validation. Assert: the agent interprets each violation type correctly. Assert: `FormatViolation` on `eventDate` triggers a date-format revision. Assert: `RangeViolation` on `decimalLatitude` triggers a value-constraint revision. Assert: `RequiredFieldViolation` on `basisOfRecord` triggers a user prompt, because the value can't be inferred from source data.
+**`ValidationFailure`:** Provide deliberately bad EML --- missing required geographic coverage when the archive contains coordinate data, a malformed contact element with an email but no name, an invalid XML namespace declaration. Assert: each violation type is identified and routed correctly.
 
-**`UnknownDwCTerm`:** Inject a hallucinated term into the classification output --- `coordinatePrecisionMeters`, `habitatClassification`, `specimenPreservationType`. Assert: the term is caught at the registry boundary. Assert: the error includes the invalid term name and a list of available alternatives (e.g., `coordinatePrecisionMeters` suggests `coordinateUncertaintyInMeters`). Assert: the hallucinated term never reaches the config generator.
+Assert: `SchemaViolation` on geographic coverage --- the EML element is structurally malformed --- triggers the LLM to regenerate the coverage element. The violation carries `elementPath`, `expected`, and `actual`, so the LLM knows exactly which element is wrong and what it should look like.
 
-**`ConfirmationTimeout`:** Simulate user non-response during the confirmation gate. Assert: the machine transitions from `confirming` to `failed` via the `CONFIRMATION_TIMEOUT` event. Assert: partial work is preserved --- the classification results are available for retry. Assert: the timeout duration is configurable and the timeout fires after the configured interval, not before.
+Assert: `CrossReferenceViolation` on a field name mismatch between meta.xml and CSV --- the meta.xml declares `scientificName` but the CSV header is `scientificname` --- triggers correction of the field declaration. The violation carries the meta.xml field, the CSV header, and the file path.
 
-**`ShellError`:** DarwinKit's CLI returns structured exit codes. Exit code 1 means validation failure (the config has violations, but DarwinKit processed it correctly). Exit code 3 means system error (DarwinKit itself failed --- missing binary, corrupted installation, permissions issue). Assert: the agent distinguishes between these. Assert: exit code 1 produces `VALIDATION_FAIL` with parsed violations, routing to `revising`. Assert: exit code 3 produces `VALIDATION_ERROR`, routing directly to `failed`. The distinction matters: validation failures are recoverable (revise and retry); system errors are not.
+Assert: `CompletenessViolation` on temporal coverage --- the archive contains date data but the EML has no temporal coverage section --- routes back to `gathering` to ask the user for the date range. The violation carries the missing section name and the characteristic that triggered the requirement.
+
+**`ConfirmationTimeout`:** Simulate user non-response during the confirmation gate. Assert: the machine transitions from `confirming` to `failed` via the `CONFIRMATION_TIMEOUT` event. Assert: partial work is preserved --- the gathered metadata is available for retry. Assert: the timeout duration is configurable and the timeout fires after the configured interval, not before.
 
 ### Contract Violations
 
-The most interesting fault injection test is the one that catches a contract violation: generated code throws a raw `Error("connection reset")` instead of returning a `ShellError`.
+The most interesting fault injection test is the one that catches a contract violation: generated code throws a raw `Error("XML parse failed")` instead of returning a `SchemaViolation`.
 
-The Effect runtime surfaces this as an *untagged defect* --- a type-level contract violation. The error channel declared `ShellError`, but an untagged `Error` escaped. Effect distinguishes between expected errors (the tagged union) and unexpected defects (things that shouldn't happen).
+The Effect runtime surfaces this as an *untagged defect* --- a type-level contract violation. The error channel declared `SchemaViolation | CompletenessViolation`, but an untagged `Error` escaped. Effect distinguishes between expected errors (the tagged union) and unexpected defects (things that shouldn't happen).
 
 The fix is mechanical: wrap the raw error in the tagged class, routing it into the typed error channel. An LLM generating the fix needs only the error type and the contract --- the Effect runtime surfaces the violation precisely, and the tagged union defines what the fix must produce. The test verifies that after the fix, the same raw `Error` is caught and wrapped. The harness never surfaces untagged defects to the agent.
 
@@ -162,27 +191,27 @@ Each strategy targets a different layer:
 
 | Strategy | Layer | Contract |
 |---|---|---|
-| **Property tests** | Parse boundaries | "For all inputs, the decoder either produces a valid value or rejects with a typed error." |
-| **Model-based tests** | State machine | "Every reachable state is visited, every transition is valid, every path terminates correctly." |
-| **Fault injection** | Error model | "Every tagged error variant is handled, reaches the correct recovery state, and produces the correct behavior." |
+| **Property tests** | Parse boundaries | "For all metadata inputs, the EML composer produces valid XML or rejects with a typed error." |
+| **Model-based tests** | State machine | "Every reachable state is visited, every transition is valid, every path terminates." |
+| **Fault injection** | Error model | "Every `ArchiveViolation` variant is handled, reaches the correct recovery state, produces correct behavior." |
 
 Every failure is legible. It traces to a specific definition and a specific contract:
 
-- A property test failure traces to a schema (Post 1). The column classifier accepted a mixed-type column it should have rejected. The DwC term registry missed a hallucinated term. The config generator produced output that doesn't match `workspaceConfigSchema`.
+- A property test failure traces to a schema (Post 1). The EML composer produced a bounding box where west exceeds east. The meta.xml generator declared fields that don't match CSV headers. The taxonomic coverage listed column names instead of species.
 - A model-based test failure traces to the machine definition (Post 3). The confirmation gate was bypassed. The revision loop didn't terminate. The circuit breaker didn't trip when stall confidence was high.
-- A fault injection failure traces to the error model (Post 2). A `ValidationFailure` wasn't interpreted correctly. An `UnknownDwCTerm` reached the config generator. A `ShellError` was conflated with a validation failure.
+- A fault injection failure traces to the error model (Post 2). A `SchemaViolation` on geographic coverage wasn't routed to regeneration. A `CompletenessViolation` on temporal coverage didn't return to `gathering`. A raw `Error` escaped instead of a typed `SchemaViolation`.
 
 Contrast with a typical agent harness where a failure surfaces as "the agent did something weird." Debugging means reading conversation logs, reconstructing state in your head, and guessing which of several hundred lines of loosely typed code misbehaved.
 
-In the DarwinKit configuration agent, the failure tells you where to look. The definitions tell you what's correct. The fix is mechanical.
+In the Darwin Core Archive agent, the failure tells you where to look. The definitions tell you what's correct. The fix is mechanical.
 
 ## The Fix Cycle
 
 The LLM receives a failure:
 
-- A minimal counterexample from a property test: "this column with mixed numeric/text values was classified as `decimalLatitude`."
-- An unreachable state from model-based testing: "the `confirming` state was bypassed when low-confidence columns existed."
-- An unhandled error tag from fault injection: "raw `Error` escaped instead of `ShellError`."
+- A minimal counterexample from a property test: "this metadata record with west > east bounding coordinates produced XML the EML schema rejects."
+- An unreachable state from model-based testing: "the `confirming` state was bypassed when unconfirmed metadata existed."
+- An unhandled error tag from fault injection: "raw `Error("XML parse failed")` escaped instead of `SchemaViolation`."
 
 Each failure points to a specific definition. The LLM generates a corrected implementation against the same constraints that produced the original. The constraints haven't changed --- only the implementation within them.
 
@@ -210,4 +239,4 @@ A schema defines valid data. The type, the decoder, and the error reporting are 
 
 For LLMs generating code against these definitions, the consequence is direct: the fewer independent artifacts to reconcile, the more likely the output is correct. When there is one source of truth and multiple enforcement layers derived from it, the LLM operates in a tightly constrained space. Most mistakes are structural failures --- caught by the compiler, the runtime, or the test suite --- rather than silent semantic errors.
 
-The DarwinKit configuration agent is a demonstration. The same principles apply to any system where an LLM generates code: define the constraints first, derive everything from them, and let the structure do the work that humans and LLMs will inevitably fail to do by hand.
+The Darwin Core Archive agent is a demonstration. The same principles apply to any system where an LLM generates code: define the constraints first, derive everything from them, and let the structure do the work that humans and LLMs will inevitably fail to do by hand.

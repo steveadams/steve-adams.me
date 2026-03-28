@@ -5,7 +5,8 @@
   "type": "module",
   "main": "index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1",
+    "test": "vitest run",
+    "test:watch": "vitest",
     "dev": "vitepress dev --watch",
     "build": "vitepress build",
     "preview": "vitepress preview"
@@ -20,6 +21,7 @@
     "@types/d3-shape": "^3.1.8",
     "typescript": "^5.9.3",
     "vitepress": "2.0.0-alpha.12",
+    "vitest": "^4.1.1",
     "vue": "^3.5.20"
   },
   "dependencies": {
@@ -28,6 +30,7 @@
     "d3-hierarchy": "^3.1.2",
     "d3-shape": "^3.2.0",
     "feed": "^5.2.0",
-    "turndown": "^7.2.1"
+    "turndown": "^7.2.1",
+    "xstate": "^5.28.0"
   }
 }

@@ -4,9 +4,9 @@ import { computeStallConfidence, type RevisionRecord } from './stallDetection'
 export type { RevisionRecord }
 
 export interface AgentContext {
-  readonly columnsTotal: number
-  readonly columnsClassified: number
-  readonly lowConfidenceCount: number
+  readonly filesTotal: number
+  readonly metadataFieldsResolved: number
+  readonly unconfirmedCount: number
   readonly gatesCleared: number
   readonly revisionRound: number
   readonly recentRevisions: ReadonlyArray<RevisionRecord>
@@ -18,16 +18,16 @@ export interface AgentContext {
 export type AgentEvent =
   | { type: 'START' }
   | { type: 'CANCEL' }
-  | { type: 'SOURCES_FOUND'; columnCount: number }
-  | { type: 'NO_SOURCES' }
-  | { type: 'ALL_CLASSIFIED_HIGH'; classified: number }
-  | { type: 'HAS_LOW_CONFIDENCE'; classified: number; lowCount: number }
-  | { type: 'CLASSIFICATION_ERROR' }
+  | { type: 'INSPECTION_COMPLETE'; fileCount: number }
+  | { type: 'INSPECTION_FAILED' }
+  | { type: 'STRUCTURE_DETERMINED'; resolved: number }
+  | { type: 'NEEDS_CONFIRMATION'; resolved: number; unconfirmedCount: number }
+  | { type: 'STRUCTURING_ERROR' }
   | { type: 'GATES_CLEARED' }
   | { type: 'USER_REJECTED' }
   | { type: 'CONFIRMATION_TIMEOUT' }
-  | { type: 'MAPPINGS_READY' }
-  | { type: 'CONFIG_WRITTEN' }
+  | { type: 'METADATA_COMPLETE' }
+  | { type: 'ARCHIVE_GENERATED' }
   | { type: 'VALIDATION_PASS' }
   | {
       type: 'VALIDATION_FAIL'
@@ -37,28 +37,6 @@ export type AgentEvent =
     }
   | { type: 'VALIDATION_ERROR' }
   | { type: 'REVISED' }
-
-export const EVENT_GROUPS = [
-  { label: 'Lifecycle', events: ['START', 'CANCEL'] },
-  { label: 'Collection', events: ['SOURCES_FOUND', 'NO_SOURCES'] },
-  {
-    label: 'Classification',
-    events: ['ALL_CLASSIFIED_HIGH', 'HAS_LOW_CONFIDENCE', 'CLASSIFICATION_ERROR'],
-  },
-  {
-    label: 'Confirmation',
-    events: ['GATES_CLEARED', 'USER_REJECTED', 'CONFIRMATION_TIMEOUT'],
-  },
-  { label: 'Mapping', events: ['MAPPINGS_READY'] },
-  { label: 'Generation', events: ['CONFIG_WRITTEN'] },
-  {
-    label: 'Validation',
-    events: ['VALIDATION_PASS', 'VALIDATION_FAIL', 'VALIDATION_ERROR'],
-  },
-  { label: 'Revision', events: ['REVISED'] },
-] as const
-
-export const ALL_EVENTS = EVENT_GROUPS.flatMap((g) => [...g.events])
 
 export interface AgentMachineConfig {
   breakerThreshold?: number
@@ -79,26 +57,26 @@ export function createAgentMachine(config: AgentMachineConfig = {}) {
         context.breakerThreshold,
     },
     actions: {
-      recordSources: assign(({ event }) => {
-        const e = event as { type: 'SOURCES_FOUND'; columnCount: number }
-        return { columnsTotal: e.columnCount }
+      recordInspection: assign(({ event }) => {
+        const e = event as { type: 'INSPECTION_COMPLETE'; fileCount: number }
+        return { filesTotal: e.fileCount }
       }),
-      recordClassificationHigh: assign(({ event }) => {
-        const e = event as { type: 'ALL_CLASSIFIED_HIGH'; classified: number }
+      recordStructure: assign(({ event }) => {
+        const e = event as { type: 'STRUCTURE_DETERMINED'; resolved: number }
         return {
-          columnsClassified: e.classified,
-          lowConfidenceCount: 0,
+          metadataFieldsResolved: e.resolved,
+          unconfirmedCount: 0,
         }
       }),
-      recordClassificationLow: assign(({ event }) => {
+      recordMetadataGathered: assign(({ event }) => {
         const e = event as {
-          type: 'HAS_LOW_CONFIDENCE'
-          classified: number
-          lowCount: number
+          type: 'NEEDS_CONFIRMATION'
+          resolved: number
+          unconfirmedCount: number
         }
         return {
-          columnsClassified: e.classified,
-          lowConfidenceCount: e.lowCount,
+          metadataFieldsResolved: e.resolved,
+          unconfirmedCount: e.unconfirmedCount,
         }
       }),
       recordGateCleared: assign(({ context }) => ({
@@ -144,9 +122,9 @@ export function createAgentMachine(config: AgentMachineConfig = {}) {
     id: 'agent',
     initial: 'idle',
     context: {
-      columnsTotal: 0,
-      columnsClassified: 0,
-      lowConfidenceCount: 0,
+      filesTotal: 0,
+      metadataFieldsResolved: 0,
+      unconfirmedCount: 0,
       gatesCleared: 0,
       revisionRound: 0,
       recentRevisions: [],
@@ -157,54 +135,54 @@ export function createAgentMachine(config: AgentMachineConfig = {}) {
     states: {
       idle: {
         on: {
-          START: 'collecting',
+          START: 'inspecting',
           CANCEL: 'failed',
         },
       },
-      collecting: {
+      inspecting: {
         on: {
-          SOURCES_FOUND: {
-            target: 'classifying',
-            actions: 'recordSources',
+          INSPECTION_COMPLETE: {
+            target: 'structuring',
+            actions: 'recordInspection',
           },
-          NO_SOURCES: 'failed',
+          INSPECTION_FAILED: 'failed',
           CANCEL: 'failed',
         },
       },
-      classifying: {
+      structuring: {
         on: {
-          ALL_CLASSIFIED_HIGH: {
-            target: 'mapping',
-            actions: 'recordClassificationHigh',
+          STRUCTURE_DETERMINED: {
+            target: 'gathering',
+            actions: 'recordStructure',
           },
-          HAS_LOW_CONFIDENCE: {
+          NEEDS_CONFIRMATION: {
             target: 'confirming',
-            actions: 'recordClassificationLow',
+            actions: 'recordMetadataGathered',
           },
-          CLASSIFICATION_ERROR: 'failed',
+          STRUCTURING_ERROR: 'failed',
           CANCEL: 'failed',
         },
       },
       confirming: {
         on: {
           GATES_CLEARED: {
-            target: 'mapping',
+            target: 'gathering',
             actions: 'recordGateCleared',
           },
-          USER_REJECTED: 'classifying',
+          USER_REJECTED: 'structuring',
           CONFIRMATION_TIMEOUT: 'failed',
           CANCEL: 'failed',
         },
       },
-      mapping: {
+      gathering: {
         on: {
-          MAPPINGS_READY: 'generating',
+          METADATA_COMPLETE: 'generating',
           CANCEL: 'failed',
         },
       },
       generating: {
         on: {
-          CONFIG_WRITTEN: 'validating',
+          ARCHIVE_GENERATED: 'validating',
           CANCEL: 'failed',
         },
       },

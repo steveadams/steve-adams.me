@@ -8,13 +8,13 @@ draft: true
 
 > Part 1 of [*Structural Guardrails for LLM-Generated Code*](/structural-guardrails)
 
-In the [series introduction](/structural-guardrails), we walked through what the DarwinKit configuration agent does — and what can go wrong at every step. Each step previewed a structural challenge. Now let's make those challenges concrete.
+In the [series introduction](/structural-guardrails), we walked through what the Darwin Core Archive packaging agent does — and what can go wrong at every step. Each step previewed a structural challenge. Now let's make those challenges concrete.
 
-We'll build a naive configuration agent using common TypeScript patterns. It will work. It will look reasonable. Then we'll add a confirmation gate, and watch everything that's fragile become visible.
+We'll build a naive archive packaging agent using common TypeScript patterns. It will work. It will look reasonable. Then we'll add a confirmation gate, and watch everything that's fragile become visible.
 
 ## The MVP
 
-The agent helps scientists map biodiversity data into Darwin Core. It reads source files, classifies columns, maps them to DwC terms, and generates a `darwinkit.yaml` config. The harness starts by loading its own configuration — what tools are available, LLM parameters, which standard to target. Here's a type for that, and a validator:
+The agent helps scientists package validated Darwin Core data into a Darwin Core Archive — a zip containing standardized CSVs, a `meta.xml` descriptor declaring archive structure, and an `eml.xml` metadata document for cataloguing and discovery. It reads source files, determines archive structure, infers metadata from the data, gathers additional metadata from the user, and generates the archive components. The harness starts by loading its own configuration — what tools are available, LLM parameters, output settings. Here's a type for that, and a validator:
 
 ```ts
 type Config = {
@@ -24,8 +24,7 @@ type Config = {
   standard: string;
   tools: {
     fileRead?: { enabled: boolean };
-    shell?: { enabled: boolean };
-    fileWrite?: { enabled: boolean };
+    archiveWrite?: { enabled: boolean };
     userPrompt?: { enabled: boolean };
   };
 };
@@ -71,8 +70,8 @@ type LLMResponse =
 // Stub: cycles through a canned sequence
 const cannedResponses: LLMResponse[] = [
   { type: "toolCall", name: "fileRead", arguments: { path: "specimens.csv" } },
-  { type: "toolCall", name: "shell", arguments: { command: "darwinkit validate config.yaml" } },
-  { type: "text", content: "Based on the source file, I've mapped 12 columns to Darwin Core terms." },
+  { type: "toolCall", name: "archiveWrite", arguments: { path: "meta.xml", content: "<archive>...</archive>" } },
+  { type: "text", content: "Based on the source files, I've generated the archive with Occurrence core, eml.xml, and meta.xml." },
 ];
 
 let responseIndex = 0;
@@ -88,7 +87,7 @@ async function callLLM(messages: Message[]): Promise<LLMResponse> {
 
 The LLM client is stubbed — we're focused on the harness, not the API integration. In a real implementation, `callLLM` would call an endpoint and parse the JSON response manually, with the same structural issues.
 
-Four tools, each stubbed to return canned data. The dispatcher uses a switch on the tool name:
+Three tools, each stubbed to return canned data. The dispatcher uses a switch on the tool name:
 
 ```ts
 function fileRead(args: Record<string, unknown>): { content: string; path: string; format: string } {
@@ -99,16 +98,12 @@ function fileRead(args: Record<string, unknown>): { content: string; path: strin
   };
 }
 
-function shell(args: Record<string, unknown>): { stdout: string; exitCode: number } {
-  return { stdout: "Validation passed: 12 fields mapped.", exitCode: 0 };
-}
-
-function fileWrite(args: Record<string, unknown>): { path: string; bytesWritten: number } {
+function archiveWrite(args: Record<string, unknown>): { path: string; bytesWritten: number } {
   return { path: String(args.path), bytesWritten: 1024 };
 }
 
 function userPrompt(args: Record<string, unknown>): { response: string; confirmed: boolean } {
-  return { response: "Yes, that mapping looks correct.", confirmed: true };
+  return { response: "Yes, that bounding box looks correct.", confirmed: true };
 }
 
 function dispatchTool(name: string, args: Record<string, unknown>): string {
@@ -116,10 +111,8 @@ function dispatchTool(name: string, args: Record<string, unknown>): string {
     switch (name) {
       case "fileRead":
         return JSON.stringify(fileRead(args));
-      case "shell":
-        return JSON.stringify(shell(args));
-      case "fileWrite":
-        return JSON.stringify(fileWrite(args));
+      case "archiveWrite":
+        return JSON.stringify(archiveWrite(args));
       case "userPrompt":
         return JSON.stringify(userPrompt(args));
       default:
@@ -211,33 +204,92 @@ And the entry point that wires it all together:
 
 ```ts
 const config = loadConfig("config.json");
-const result = await runAgent("Map specimens.csv to Darwin Core", config);
+const result = await runAgent(
+  "Package specimens.csv as a Darwin Core Archive with Occurrence core, eml.xml, and meta.xml",
+  config,
+);
 console.log("Result:", result);
 ```
 
-This works. Run it and you get `"Result: Based on the source file, I've mapped 12 columns to Darwin Core terms."` The happy path is fine.
+This works. Run it and you get `"Result: Based on the source files, I've generated the archive with Occurrence core, eml.xml, and meta.xml."` The happy path is fine.
 
 ## The Audit
 
 This works. It's not broken. Now add a confirmation gate.
 
-The naive harness has no confirmation step. The agent reads source files, classifies columns, and generates a config — but nothing requires the user to confirm low-confidence classifications before the config is written. Adding `userPrompt` as a confirmation tool means touching every layer of the harness, and each layer reveals a different fragility.
+The naive harness has no confirmation step. The agent reads source files, infers metadata from the data — geographic bounding box from coordinates, temporal extent from date columns, taxonomic coverage from species fields — and generates archive components without asking the user whether any of it is correct. Adding `userPrompt` as a confirmation tool means touching every layer of the harness, and each layer reveals a different fragility.
 
 **The config type and the validator disagree.** The `Config` type already has `userPrompt?: { enabled: boolean }` in the `tools` block. The validator doesn't know — it never checks inside `tools`. The `as Config` cast on the last line of `loadConfig` promises a shape the validator didn't verify. Downstream code accesses `config.tools.userPrompt.enabled` and gets `undefined` at runtime, despite the type saying `boolean`. *We'll fix this first, below.*
 
-**The deeper problem: nothing proves the user was consulted.** Even with `userPrompt` in the config and the tool wired up, nothing forces the agent to call it. The agent can classify a column as `decimalLatitude` with 40% confidence, skip the confirmation step, and write a config that maps GPS coordinates to the wrong field. The type system doesn't distinguish "classification that was confirmed" from "classification that was not." There's no receipt. *We'll fix this too — below.*
+**The deeper problem: nothing proves the user was consulted.** Even with `userPrompt` in the config and the tool wired up, nothing forces the agent to call it. The agent can compute a geographic bounding box from coordinate columns that includes an outlier at [0, 0] — a common sentinel value for missing data — producing a coverage area that spans the entire globe. Without a confirmation gate, it writes that bounding box into `eml.xml` and the archive ships with geographic metadata that's wrong. The type system doesn't distinguish "inferred metadata that was confirmed" from "inferred metadata that was not." There's no receipt. *We'll fix this too — below.*
 
-**Every error is the same string.** `userPrompt` can fail in ways the other tools can't — the user might reject a classification, the terminal might not be interactive, the prompt might time out. But `dispatchTool` catches everything as `Error` and returns `"Tool execution failed: ..."`. The agent can't tell a user rejection from a timeout. *Post 2: discriminated unions and exhaustive matching.*
+**Every error is the same string.** `userPrompt` can fail in ways the other tools can't — the user might reject inferred metadata, the terminal might not be interactive, the prompt might time out. But `dispatchTool` catches everything as `Error` and returns `"Tool execution failed: ..."`. The agent can't tell a user rejection from a timeout. *Post 2: discriminated unions and exhaustive matching.*
 
 **The conversation has no protocol.** The `messages` array accepts any message in any order. After `dispatchTool` returns, nothing prevents calling `callLLM` again without pushing the tool result first — a dangling tool call the LLM API will reject with a confusing error. The type is `Message[]`. It doesn't encode "you must resolve tool calls before calling the LLM again." *Post 4: typestate patterns enforce ordering at compile time.*
 
-**Every tool is always available.** A read-only classification task has the same access as one that writes configs — `dispatchTool` doesn't care. If the LLM hallucinates a `fileWrite` call during a classification-only phase, the harness will execute it. There's no structural restriction, just hope. *Post 5: capabilities and effects.*
+**Every tool is always available.** A read-only metadata inference task has the same access as one that writes archive components — `dispatchTool` doesn't care. If the LLM hallucinates an `archiveWrite` call during an inspection-only phase, the harness will execute it. There's no structural restriction, just hope. *Post 5: capabilities and effects.*
 
 **Budget enforcement is an afterthought.** Token counting is a single if-statement with a rough estimate. Add API call limits or wall-clock time and you add more if-statements, scattered through the loop body, each checking independently. Nothing ensures all dimensions are checked or that the checks are consistent. *Post 3: state machines with parallel budget tracking.*
 
-**Context compaction is brittle.** Classification decisions produce detailed results — column names, confidence scores, reasoning, user confirmations. `compactConversation` truncates these to 80 characters, losing information the agent needs to track which columns were confirmed. Worse, `slice(-6)` doesn't respect message pairs. If the boundary falls between a `userPrompt` tool call and its result, the compacted conversation has a dangling confirmation with no outcome — and the agent has lost the receipt of user approval. Losing a classification receipt means re-asking the user, or worse, proceeding without confirmation. *Compaction is a cross-cutting concern — the missing receipt (Post 1), indistinguishable outcomes (Post 2), protocol-breaking slices (Post 3), ungoverned timing (Post 4), and hidden summarization effects (Post 5) each appear in subsequent posts.*
+**Context compaction is brittle.** Metadata inference produces detailed results — bounding box coordinates, temporal ranges, taxonomic lists, confirmation decisions. `compactConversation` truncates these to 80 characters, losing information the agent needs to track which metadata was confirmed. Worse, `slice(-6)` doesn't respect message pairs. If the boundary falls between a `userPrompt` tool call and its result, the compacted conversation has a dangling confirmation with no outcome — and the agent has lost the receipt of user approval. Losing an inferred metadata receipt means the agent re-infers it (wasteful) or proceeds without confirmation (dangerous — the bounding box included an outlier at [0, 0] that makes geographic coverage span the entire globe). *Compaction is a cross-cutting concern — the missing receipt (Post 1), indistinguishable outcomes (Post 2), protocol-breaking slices (Post 3), ungoverned timing (Post 4), and hidden summarization effects (Post 5) each appear in subsequent posts.*
 
-This isn't bad code. It's normal code — the kind most agent harnesses use. The problems are natural consequences of common patterns. Each one becomes a structural fix in a subsequent post. We start with the first.
+This isn't bad code. It's normal code — the kind most agent harnesses use. The problems are natural consequences of common patterns. Each one becomes a structural fix in a subsequent post.
+
+## Separating Concerns
+
+Before fixing these individually, let's separate them so each fix is a targeted change. The loop body tangles compaction, budget checking, response handling, and tool dispatch together. Extract the pre-turn concerns into named stages with a shared signature:
+
+```ts
+type CheckResult = { continue: true } | { continue: false; reason: string };
+
+function compact(messages: Message[], config: Config): CheckResult {
+  const compacted = compactConversation(messages, config.llm.maxTokens * 0.8);
+  messages.length = 0;
+  messages.push(...compacted);
+  return { continue: true };
+}
+
+function checkBudget(messages: Message[], config: Config): CheckResult {
+  if (estimateTokens(messages) > config.llm.maxTokens) {
+    return { continue: false, reason: "Budget exceeded." };
+  }
+  return { continue: true };
+}
+
+const preTurnChecks = [compact, checkBudget];
+```
+
+The main loop becomes a pipeline:
+
+```ts
+async function runAgent(task: string, config: Config): Promise<string> {
+  let messages: Message[] = [{ role: "user", content: task }];
+  let iterations = 0;
+
+  while (iterations < 20) {
+    for (const check of preTurnChecks) {
+      const result = check(messages, config);
+      if (!result.continue) return result.reason;
+    }
+
+    const response = await callLLM(messages);
+
+    if (response.type === "text") return response.content;
+
+    if (response.type === "toolCall") {
+      messages.push({ role: "assistant", toolCall: { name: response.name, arguments: response.arguments } });
+      const result = dispatchTool(response.name, response.arguments);
+      messages.push({ role: "tool", name: response.name, result });
+    }
+
+    iterations++;
+  }
+
+  return "Max iterations reached.";
+}
+```
+
+Same problems. The `compact` stage still destroys receipts with `slice(-6)`. The budget check still uses a rough heuristic. The dispatcher still catches everything as a generic string. Nothing is structurally safer — just isolated. Each subsequent post replaces a specific stage.
 
 ## Types as Receipts
 
@@ -255,8 +307,7 @@ type ParsedConfig = {
   readonly standard: string;
   readonly tools: {
     readonly fileRead?: { readonly enabled: boolean };
-    readonly shell?: { readonly enabled: boolean };
-    readonly fileWrite?: { readonly enabled: boolean };
+    readonly archiveWrite?: { readonly enabled: boolean };
     readonly userPrompt?: { readonly enabled: boolean };
   };
 };
@@ -304,11 +355,7 @@ const FileReadConfigSchema = Schema.Struct({
   enabled: Schema.Boolean,
 });
 
-const ShellConfigSchema = Schema.Struct({
-  enabled: Schema.Boolean,
-});
-
-const FileWriteConfigSchema = Schema.Struct({
+const ArchiveWriteConfigSchema = Schema.Struct({
   enabled: Schema.Boolean,
 });
 
@@ -326,8 +373,7 @@ const ConfigSchema = Schema.Struct({
   standard: Schema.Literal("dwc", "abcd"),
   tools: Schema.Struct({
     fileRead: Schema.optional(FileReadConfigSchema),
-    shell: Schema.optional(ShellConfigSchema),
-    fileWrite: Schema.optional(FileWriteConfigSchema),
+    archiveWrite: Schema.optional(ArchiveWriteConfigSchema),
     userPrompt: Schema.optional(UserPromptConfigSchema),
   }),
 });
@@ -357,11 +403,11 @@ Choosing Effect Schema is itself a structural decision. It signals to an LLM hel
 
 ### The Other Boundaries
 
-The config boundary is the first, but it's not the only one. The DarwinKit configuration agent has boundaries everywhere untrusted data enters — and some of those boundaries carry real-world consequences.
+The config boundary is the first, but it's not the only one. The archive packaging agent has boundaries everywhere untrusted data enters — and some of those boundaries carry real-world consequences.
 
 #### Source Files
 
-When the agent reads a CSV file, it gets raw bytes. Before classification can begin, those bytes need to become structured metadata:
+When the agent reads a CSV file, it gets raw bytes. Before archive structure determination can begin, those bytes need to become structured metadata:
 
 ```ts
 const SourceFileSchema = Schema.Struct({
@@ -377,36 +423,40 @@ const SourceFileSchema = Schema.Struct({
 type SourceFile = Schema.Schema.Type<typeof SourceFileSchema>;
 ```
 
-At runtime, a tool that returns malformed file metadata is caught at the boundary — not three function calls later when the classifier tries to access `columns` on an object that doesn't have any. At development time, an LLM generating the file-reading code can't produce a `SourceFile` without going through the decoder.
+At runtime, a tool that returns malformed file metadata is caught at the boundary — not three function calls later when the structure determination step tries to access `columns` on an object that doesn't have any. At development time, an LLM generating the file-reading code can't produce a `SourceFile` without going through the decoder.
 
-#### Column Classification
+#### Archive Structure
 
-The agent classifies each column against Darwin Core terms. A classification carries a confidence score and reasoning:
+The agent determines what kind of archive this data represents — Occurrence core or Event core, which files are extensions, what the row type is for each. A structure determination carries the reasoning and the decision:
 
 ```ts
-const SemanticClassificationSchema = Schema.Struct({
-  _tag: Schema.Literal("semanticClassification"),
-  column: Schema.String,
-  dwcTerm: Schema.String,
-  confidence: Schema.Number.pipe(Schema.between(0, 1)),
+const ArchiveStructureSchema = Schema.Struct({
+  _tag: Schema.Literal("archiveStructure"),
+  coreType: Schema.Literal("Occurrence", "Event"),
+  coreFile: Schema.String,
+  extensions: Schema.Array(Schema.Struct({
+    file: Schema.String,
+    rowType: Schema.String,
+  })),
   reasoning: Schema.String,
 });
 
-type SemanticClassification = Schema.Schema.Type<typeof SemanticClassificationSchema>;
+type ArchiveStructure = Schema.Schema.Type<typeof ArchiveStructureSchema>;
 ```
 
-The `_tag` is a convention — a literal string that distinguishes this type from every other. The `confidence` score is constrained to `[0, 1]` at the boundary, not by a comment or convention. Downstream code that checks `classification.confidence < 0.8` knows the value is a number in range — because the schema proved it. The LLM's classification output is non-deterministic — the schema is the gate between non-deterministic output and typed, trustworthy data.
+The `_tag` is a convention — a literal string that distinguishes this type from every other. The `coreType` is constrained to `"Occurrence"` or `"Event"` at the boundary, not by a comment or convention. Downstream code that branches on `structure.coreType` knows the value is one of those two — because the schema proved it. The LLM's structural determination is non-deterministic — the schema is the gate between non-deterministic output and typed, trustworthy data.
 
-#### The Receipt Chain: Classification to Mapping
+#### The Receipt Chain: Metadata to Manifest
 
-Here's where "types as receipts" becomes more than a config-loading trick. A `ColumnMapping` — the structure that ends up in the generated `darwinkit.yaml` — should only exist if the column was classified. And if the classification confidence was low, the mapping should only exist if the user confirmed it.
+Here's where "types as receipts" becomes more than a config-loading trick. An `ArchiveManifest` — the structure that drives generation of `meta.xml` and `eml.xml` — should only exist if the archive structure was determined and the inferred metadata was confirmed.
+
+The agent infers metadata from the data: a geographic bounding box from coordinate columns, a temporal extent from date fields, taxonomic coverage from species columns. Each inference is a receipt:
 
 ```ts
 const UserConfirmationSchema = Schema.Struct({
   _tag: Schema.Literal("userConfirmation"),
-  column: Schema.String,
-  dwcTerm: Schema.String,
-  originalConfidence: Schema.Number.pipe(Schema.between(0, 1)),
+  metadataField: Schema.String,
+  inferredValue: Schema.String,
   userApproved: Schema.Boolean,
   timestamp: Schema.String,
 });
@@ -415,7 +465,7 @@ type UserConfirmation = Schema.Schema.Type<typeof UserConfirmationSchema>;
 
 const UserResponseSchema = Schema.Struct({
   _tag: Schema.Literal("userResponse"),
-  column: Schema.String,
+  field: Schema.String,
   question: Schema.String,
   response: Schema.String,
   timestamp: Schema.String,
@@ -423,50 +473,41 @@ const UserResponseSchema = Schema.Struct({
 
 type UserResponse = Schema.Schema.Type<typeof UserResponseSchema>;
 
-const ColumnMappingSchema = Schema.Struct({
-  _tag: Schema.Literal("columnMapping"),
-  sourceColumn: Schema.String,
-  dwcTerm: Schema.String,
-  classification: SemanticClassificationSchema,
+const MetadataRecordSchema = Schema.Struct({
+  _tag: Schema.Literal("metadataRecord"),
+  field: Schema.String,
+  value: Schema.String,
+  source: Schema.Literal("inferred", "userProvided"),
+  archiveStructure: ArchiveStructureSchema,
   confirmation: Schema.optional(UserConfirmationSchema),
   userContext: Schema.optional(Schema.Array(UserResponseSchema)),
 });
 
-type ColumnMapping = Schema.Schema.Type<typeof ColumnMappingSchema>;
+type MetadataRecord = Schema.Schema.Type<typeof MetadataRecordSchema>;
 ```
 
-Notice: `ColumnMapping` requires a `classification` field whose type is `SemanticClassification`. You can't construct a `ColumnMapping` without first having a decoded `SemanticClassification`. The classification is the receipt — proof that the column was analyzed before it was mapped.
+Notice: `MetadataRecord` requires an `archiveStructure` field whose type is `ArchiveStructure`. You can't construct a `MetadataRecord` without first having a decoded `ArchiveStructure`. The structure determination is the receipt — proof that the archive's shape was analyzed before metadata was assembled.
 
-There are two kinds of user interaction receipts. `UserConfirmation` is the yes/no gate for low-confidence classifications — proof that the user approved a specific mapping. `UserResponse` is a gap-filling answer — the user told the agent that "sp_code" means "species code," and that context informed the classification. Both are receipts: they record what the user said, when, and about which column. If either is lost during context compaction, the agent has lost proof of a decision that constrains downstream mappings.
+There are two kinds of user interaction receipts. `UserConfirmation` is the yes/no gate for inferred metadata — proof that the user verified a specific inference. The agent computed a geographic bounding box from coordinate columns, but did the user confirm it's correct? The box might include an outlier at [0, 0] — a common sentinel for missing coordinates — that makes the coverage span the entire globe. `UserResponse` is a gap-filling answer — the user provided an abstract, described collection methods, or selected keywords from a controlled vocabulary. Both are receipts: they record what the user said, when, and about which metadata field. If either is lost during context compaction, the agent has lost proof of a decision that constrains the archive's metadata.
 
-In the naive version, nothing prevented the agent from skipping classification and going straight to config generation. Here, the type makes it impossible. A `ColumnMapping` without a `classification` fails to decode. The receipt chain is structural.
+In the naive version, nothing prevented the agent from skipping structure determination and going straight to archive generation. Here, the type makes it impossible. A `MetadataRecord` without an `archiveStructure` fails to decode. The receipt chain is structural.
 
-#### The Generated Config
+#### The Archive Manifest
 
-The final output — the `darwinkit.yaml` config — also gets a schema:
+The final output structure — what drives generation of `meta.xml` and `eml.xml` — also gets a schema:
 
 ```ts
-const FieldMappingSchema = Schema.Struct({
-  sourceField: Schema.String,
-  dwcField: Schema.String,
-});
-
-const DatasetSchema = Schema.Struct({
-  source: Schema.String,
-  format: Schema.Literal("csv", "tsv", "xlsx"),
-  fieldMappings: Schema.Array(FieldMappingSchema),
-});
-
-const DarwinKitConfigSchema = Schema.Struct({
-  _tag: Schema.Literal("darwinKitConfig"),
+const ArchiveManifestSchema = Schema.Struct({
+  _tag: Schema.Literal("archiveManifest"),
+  structure: ArchiveStructureSchema,
+  metadata: Schema.Array(MetadataRecordSchema),
   standard: Schema.Literal("dwc", "abcd"),
-  datasets: Schema.Array(DatasetSchema),
 });
 
-type DarwinKitConfig = Schema.Schema.Type<typeof DarwinKitConfigSchema>;
+type ArchiveManifest = Schema.Schema.Type<typeof ArchiveManifestSchema>;
 ```
 
-The generated config is decoded before it's written to disk. If the agent produces a config with an invalid `standard` or a malformed field mapping, the boundary catches it. The agent doesn't write garbage and hope the DarwinKit CLI figures it out later.
+The manifest requires an `ArchiveStructure` receipt and an array of `MetadataRecord` receipts — each of which carries its own `ArchiveStructure` receipt and optional `UserConfirmation` receipts. Multiple receipt types feed into the manifest, each proving a different kind of verification happened: that archive structure was determined, that inferred geographic coverage was verified, that the user-provided abstract was reviewed. The manifest is decoded before it drives generation. If the agent produces a manifest with an invalid `standard` or a metadata record lacking its structure receipt, the boundary catches it. The agent doesn't generate archive components from unverified metadata and hope the output is correct.
 
 #### LLM Responses
 
@@ -502,45 +543,97 @@ The `_tag` field distinguishes each variant. The MVP used `type`, but `_tag` is 
 
 ### Context Compaction and Lost Receipts
 
-The compaction problem is sharper now. In the naive version, compacting away a tool result loses some text. In the receipt-based version, compacting away a `SemanticClassification` or a `UserConfirmation` loses proof.
+The compaction problem is sharper now. In the naive version, compacting away a tool result loses some text. In the receipt-based version, compacting away an `ArchiveStructure` or a `UserConfirmation` loses proof.
 
-Consider the agent midway through a session. It has classified 15 columns, asked the user to confirm 3 low-confidence mappings, and received approval for 2 of them. The conversation is long. Compaction runs. If `slice(-6)` drops the messages containing those confirmations, the agent has lost the receipts. It has two choices: re-ask the user (annoying, and the user may not give the same answer), or proceed without confirmation (exactly the bug the receipt chain was supposed to prevent).
+Consider the agent midway through a session. It has determined the archive structure, inferred a geographic bounding box and temporal extent, and asked the user to confirm both. The user approved the temporal extent but corrected the bounding box — the computed extent included outlier coordinates at [0, 0], and the user narrowed it to their actual study area. The conversation is long. Compaction runs. If `slice(-6)` drops the messages containing those confirmations, the agent has lost the receipts. It has two choices: re-infer the bounding box and re-ask the user (wasteful, and the user may not give the same correction), or proceed without confirmation (exactly the bug the receipt chain was supposed to prevent — the bounding box reverts to including the [0, 0] outlier, and the archive ships with geographic coverage spanning the entire globe).
 
-This is why compaction can't be a generic text-truncation function. It needs to understand what receipts exist in the conversation and preserve them. The receipt schema tells you which messages carry proof — that's a structural advantage over the naive version, where nothing distinguishes a classification result from any other tool output. Receipt-aware compaction — understanding which messages carry proof and preserving them — is a significant problem that deserves its own treatment. This series focuses on the structural patterns themselves; a follow-up could address how compaction interacts with each of them.
+The receipt schemas fix this. The same schemas that validate data at boundaries also identify which messages carry proof:
+
+```ts
+const receiptSchemas = [
+  ArchiveStructureSchema,
+  UserConfirmationSchema,
+  UserResponseSchema,
+];
+
+function isReceipt(msg: Message): boolean {
+  if (msg.role !== "tool") return false;
+  try {
+    const data = JSON.parse(msg.result);
+    return receiptSchemas.some((schema) =>
+      Either.isRight(Schema.decodeUnknownEither(schema)(data))
+    );
+  } catch {
+    return false;
+  }
+}
+```
+
+The `compact` stage from the extracted pipeline now uses this to preserve receipts during compaction:
+
+```ts
+function compact(messages: Message[], config: Config): CheckResult {
+  if (estimateTokens(messages) < config.llm.maxTokens * 0.8) return { continue: true };
+
+  const task = messages[0];
+  const recent = messages.slice(-6);
+  const older = messages.slice(1, -6);
+  const olderReceipts = older.filter(isReceipt);
+  const compactable = older.filter((m) => !isReceipt(m));
+
+  const summary = compactable
+    .map((m) =>
+      'toolCall' in m ? `Called ${m.toolCall.name}`
+      : 'result' in m ? `${m.name}: ${m.result.slice(0, 80)}`
+      : m.content.slice(0, 100))
+    .join(' → ');
+
+  messages.length = 0;
+  messages.push(
+    task,
+    { role: "assistant", content: `[Earlier context: ${summary}]` },
+    ...olderReceipts,
+    ...recent,
+  );
+  return { continue: true };
+}
+```
+
+Non-receipt messages are summarized and truncated. Receipt messages are preserved regardless of their position. The schema serves two enforcement points: it validates data crossing a boundary, and it identifies proof that compaction must preserve. One definition, two derivations. Add a new receipt type — say, a `SchemaValidation` for confirming EML validates against the XML schema — and `isReceipt` automatically preserves it. The receipt schemas are the source of truth for both "is this valid?" and "must this survive?"
 
 ### Scaling
 
-Adding a new tool means adding two schemas — one for the config, one for the result. Say the harness needs a `webFetch` tool for pulling reference taxonomies:
+Adding a new tool means adding two schemas — one for the config, one for the result. Say the harness needs a `schemaRegistry` tool for fetching controlled vocabulary terms — EML keywords, Darwin Core term URIs:
 
 ```ts
-const WebFetchConfigSchema = Schema.Struct({
+const SchemaRegistryConfigSchema = Schema.Struct({
   enabled: Schema.Boolean,
-  allowedDomains: Schema.Array(Schema.String),
+  registryUrl: Schema.String,
 });
 
-const WebFetchResultSchema = Schema.Struct({
-  _tag: Schema.Literal("webFetchResult"),
-  url: Schema.String,
-  content: Schema.String,
-  statusCode: Schema.Number,
+const SchemaRegistryResultSchema = Schema.Struct({
+  _tag: Schema.Literal("schemaRegistryResult"),
+  termUri: Schema.String,
+  vocabulary: Schema.String,
+  matchedTerms: Schema.Array(Schema.String),
 });
 ```
 
-Add `webFetch: Schema.optional(WebFetchConfigSchema)` to the `tools` struct in `ConfigSchema`. The type updates. The decoder checks it. The error messages cover it. No cast, no hand-rolled validator to forget.
+Add `schemaRegistry: Schema.optional(SchemaRegistryConfigSchema)` to the `tools` struct in `ConfigSchema`. The type updates. The decoder checks it. The error messages cover it. No cast, no hand-rolled validator to forget.
 
-And if the new tool's result needs to feed into the receipt chain — say, a taxonomy lookup that validates a `dwcTerm` — you add the receipt requirement to `ColumnMappingSchema`. Every existing mapping that lacks the new receipt is now a decode error. The compiler tells you everywhere the chain is incomplete.
+And if the new tool's result needs to feed into the receipt chain — say, a registry lookup that validates keyword selections against a controlled vocabulary — you add the receipt requirement to `MetadataRecordSchema`. Every existing metadata record that lacks the new receipt is now a decode error. The compiler tells you everywhere the chain is incomplete.
 
-The audit's first finding — "the config type and the validator disagree" — is eliminated. They can't disagree because they don't exist separately. The schema is the type and the validator. And the deeper finding — "nothing proves the user was consulted" — is eliminated by the receipt chain. A `ColumnMapping` without a `SemanticClassification` is structurally impossible. A low-confidence mapping without a `UserConfirmation` is a policy decision you can enforce at the schema level.
+The audit's first finding — "the config type and the validator disagree" — is eliminated. They can't disagree because they don't exist separately. The schema is the type and the validator. And the deeper finding — "nothing proves the user was consulted" — is eliminated by the receipt chain. A `MetadataRecord` without an `ArchiveStructure` is structurally impossible. Inferred metadata without a `UserConfirmation` is a policy decision you can enforce at the schema level.
 
 ---
 
 ## What's Next
 
-The audit surfaced seven fragilities. This post fixed the first two — validation that doesn't change the type, and nothing proving the user was consulted — by introducing receipt chains that carry proof through the agent's workflow. Four more map to subsequent posts:
+The audit surfaced seven fragilities. We separated the inline concerns into named middleware stages — same problems, just isolated — then fixed three: validation that doesn't change the type, nothing proving the user was consulted, and context compaction that destroys receipts. Receipt schemas now drive both boundary validation and compaction preservation — one definition, two enforcement points. Four more map to subsequent posts, each replacing a specific stage:
 
 - **Errors are generic strings.** Every failure is the same catch block. *Next: [Making Illegal States Unrepresentable](/making-illegal-states-unrepresentable) — discriminated unions where the compiler enforces exhaustive handling.*
 - **Budget enforcement is scattered and the lifecycle has no structure.** Ad-hoc if-statements and a while loop with a counter. *[State Machines and Lifecycle](/state-machines-and-lifecycle) — XState with bounded loops and a parallel budget tracker.*
 - **The conversation has no protocol.** Messages can arrive in any order. *[Encoding Protocols in State](/encoding-protocols-in-state) — typestate at compile time.*
 - **Every tool is always available.** No structural restriction on what the harness can reach. *[Capabilities and Effects](/capabilities-and-effects) — narrow interfaces and effect tracking.*
 
-Each post takes the MVP from this post and applies one fix. The same codebase, progressively constrained, until most classes of bug have nowhere to live.
+Each post takes the codebase from here and replaces a specific stage. The same middleware pipeline, progressively constrained, until most classes of bug have nowhere to live.

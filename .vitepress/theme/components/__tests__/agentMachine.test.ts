@@ -26,49 +26,49 @@ function stateString(value: unknown): string {
 
 describe('agent machine', () => {
   describe('happy path (all high confidence)', () => {
-    it('idle → collecting → classifying → mapping → generating → validating → complete', () => {
+    it('idle → inspecting → structuring → gathering → generating → validating → complete', () => {
       const snap = run([
         { type: 'START' },
-        { type: 'SOURCES_FOUND', columnCount: 10 },
-        { type: 'ALL_CLASSIFIED_HIGH', classified: 10 },
-        { type: 'MAPPINGS_READY' },
-        { type: 'CONFIG_WRITTEN' },
+        { type: 'INSPECTION_COMPLETE', fileCount: 10 },
+        { type: 'STRUCTURE_DETERMINED', resolved: 10 },
+        { type: 'METADATA_COMPLETE' },
+        { type: 'ARCHIVE_GENERATED' },
         { type: 'VALIDATION_PASS' },
       ])
       expect(stateString(snap.value)).toBe('complete')
-      expect(snap.context.columnsTotal).toBe(10)
-      expect(snap.context.columnsClassified).toBe(10)
-      expect(snap.context.lowConfidenceCount).toBe(0)
+      expect(snap.context.filesTotal).toBe(10)
+      expect(snap.context.metadataFieldsResolved).toBe(10)
+      expect(snap.context.unconfirmedCount).toBe(0)
     })
   })
 
   describe('confirmation path', () => {
-    it('classifying → confirming → mapping when gates cleared', () => {
+    it('structuring → confirming → gathering when gates cleared', () => {
       const snap = run([
         { type: 'START' },
-        { type: 'SOURCES_FOUND', columnCount: 8 },
-        { type: 'HAS_LOW_CONFIDENCE', classified: 8, lowCount: 3 },
+        { type: 'INSPECTION_COMPLETE', fileCount: 8 },
+        { type: 'NEEDS_CONFIRMATION', resolved: 8, unconfirmedCount: 3 },
         { type: 'GATES_CLEARED' },
-        { type: 'MAPPINGS_READY' },
-        { type: 'CONFIG_WRITTEN' },
+        { type: 'METADATA_COMPLETE' },
+        { type: 'ARCHIVE_GENERATED' },
         { type: 'VALIDATION_PASS' },
       ])
       expect(stateString(snap.value)).toBe('complete')
-      expect(snap.context.lowConfidenceCount).toBe(3)
+      expect(snap.context.unconfirmedCount).toBe(3)
       expect(snap.context.gatesCleared).toBe(1)
     })
   })
 
   describe('user rejection loop', () => {
-    it('confirming → classifying → confirming → mapping', () => {
+    it('structuring → confirming → structuring → gathering', () => {
       const snap = run([
         { type: 'START' },
-        { type: 'SOURCES_FOUND', columnCount: 5 },
-        { type: 'HAS_LOW_CONFIDENCE', classified: 5, lowCount: 2 },
+        { type: 'INSPECTION_COMPLETE', fileCount: 5 },
+        { type: 'NEEDS_CONFIRMATION', resolved: 5, unconfirmedCount: 2 },
         { type: 'USER_REJECTED' },
         // Reclassify — this time all high
-        { type: 'ALL_CLASSIFIED_HIGH', classified: 5 },
-        { type: 'MAPPINGS_READY' },
+        { type: 'STRUCTURE_DETERMINED', resolved: 5 },
+        { type: 'METADATA_COMPLETE' },
       ])
       expect(stateString(snap.value)).toBe('generating')
     })
@@ -78,10 +78,10 @@ describe('agent machine', () => {
     it('validating → revising → generating → validating → complete', () => {
       const snap = run([
         { type: 'START' },
-        { type: 'SOURCES_FOUND', columnCount: 5 },
-        { type: 'ALL_CLASSIFIED_HIGH', classified: 5 },
-        { type: 'MAPPINGS_READY' },
-        { type: 'CONFIG_WRITTEN' },
+        { type: 'INSPECTION_COMPLETE', fileCount: 5 },
+        { type: 'STRUCTURE_DETERMINED', resolved: 5 },
+        { type: 'METADATA_COMPLETE' },
+        { type: 'ARCHIVE_GENERATED' },
         {
           type: 'VALIDATION_FAIL',
           violationCount: 3,
@@ -89,7 +89,7 @@ describe('agent machine', () => {
           adjustedFields: ['decimalLatitude'],
         },
         { type: 'REVISED' },
-        { type: 'CONFIG_WRITTEN' },
+        { type: 'ARCHIVE_GENERATED' },
         { type: 'VALIDATION_PASS' },
       ])
       expect(stateString(snap.value)).toBe('complete')
@@ -99,10 +99,10 @@ describe('agent machine', () => {
     it('tracks revision rounds and stall confidence', () => {
       const snap = run([
         { type: 'START' },
-        { type: 'SOURCES_FOUND', columnCount: 5 },
-        { type: 'ALL_CLASSIFIED_HIGH', classified: 5 },
-        { type: 'MAPPINGS_READY' },
-        { type: 'CONFIG_WRITTEN' },
+        { type: 'INSPECTION_COMPLETE', fileCount: 5 },
+        { type: 'STRUCTURE_DETERMINED', resolved: 5 },
+        { type: 'METADATA_COMPLETE' },
+        { type: 'ARCHIVE_GENERATED' },
         {
           type: 'VALIDATION_FAIL',
           violationCount: 5,
@@ -110,7 +110,7 @@ describe('agent machine', () => {
           adjustedFields: ['fieldA'],
         },
         { type: 'REVISED' },
-        { type: 'CONFIG_WRITTEN' },
+        { type: 'ARCHIVE_GENERATED' },
         {
           type: 'VALIDATION_FAIL',
           violationCount: 5,
@@ -128,10 +128,10 @@ describe('agent machine', () => {
     it('trips when revision risk exceeds threshold', () => {
       const events: Array<{ type: string; [k: string]: any }> = [
         { type: 'START' },
-        { type: 'SOURCES_FOUND', columnCount: 5 },
-        { type: 'ALL_CLASSIFIED_HIGH', classified: 5 },
-        { type: 'MAPPINGS_READY' },
-        { type: 'CONFIG_WRITTEN' },
+        { type: 'INSPECTION_COMPLETE', fileCount: 5 },
+        { type: 'STRUCTURE_DETERMINED', resolved: 5 },
+        { type: 'METADATA_COMPLETE' },
+        { type: 'ARCHIVE_GENERATED' },
       ]
       // Send repeated validation failures with same violations (high stall confidence)
       for (let i = 0; i < 5; i++) {
@@ -144,7 +144,7 @@ describe('agent machine', () => {
         // After enough rounds, the circuit breaker should trip on entry to revising
         if (i < 4) {
           events.push({ type: 'REVISED' })
-          events.push({ type: 'CONFIG_WRITTEN' })
+          events.push({ type: 'ARCHIVE_GENERATED' })
         }
       }
       const snap = run(events, { breakerThreshold: 2, windowSize: 5 })
@@ -156,10 +156,10 @@ describe('agent machine', () => {
       const snap = run(
         [
           { type: 'START' },
-          { type: 'SOURCES_FOUND', columnCount: 5 },
-          { type: 'ALL_CLASSIFIED_HIGH', classified: 5 },
-          { type: 'MAPPINGS_READY' },
-          { type: 'CONFIG_WRITTEN' },
+          { type: 'INSPECTION_COMPLETE', fileCount: 5 },
+          { type: 'STRUCTURE_DETERMINED', resolved: 5 },
+          { type: 'METADATA_COMPLETE' },
+          { type: 'ARCHIVE_GENERATED' },
           {
             type: 'VALIDATION_FAIL',
             violationCount: 10,
@@ -167,7 +167,7 @@ describe('agent machine', () => {
             adjustedFields: ['fieldA'],
           },
           { type: 'REVISED' },
-          { type: 'CONFIG_WRITTEN' },
+          { type: 'ARCHIVE_GENERATED' },
           {
             type: 'VALIDATION_FAIL',
             violationCount: 5,
@@ -175,7 +175,7 @@ describe('agent machine', () => {
             adjustedFields: ['fieldB'],
           },
           { type: 'REVISED' },
-          { type: 'CONFIG_WRITTEN' },
+          { type: 'ARCHIVE_GENERATED' },
           {
             type: 'VALIDATION_FAIL',
             violationCount: 2,
@@ -191,19 +191,19 @@ describe('agent machine', () => {
     })
   })
 
-  describe('no sources', () => {
-    it('collecting → failed when no sources found', () => {
-      const snap = run([{ type: 'START' }, { type: 'NO_SOURCES' }])
+  describe('inspection failed', () => {
+    it('inspecting → failed when inspection fails', () => {
+      const snap = run([{ type: 'START' }, { type: 'INSPECTION_FAILED' }])
       expect(stateString(snap.value)).toBe('failed')
     })
   })
 
-  describe('classification error', () => {
-    it('classifying → failed on error', () => {
+  describe('structuring error', () => {
+    it('structuring → failed on error', () => {
       const snap = run([
         { type: 'START' },
-        { type: 'SOURCES_FOUND', columnCount: 5 },
-        { type: 'CLASSIFICATION_ERROR' },
+        { type: 'INSPECTION_COMPLETE', fileCount: 5 },
+        { type: 'STRUCTURING_ERROR' },
       ])
       expect(stateString(snap.value)).toBe('failed')
     })
@@ -213,8 +213,8 @@ describe('agent machine', () => {
     it('confirming → failed on timeout', () => {
       const snap = run([
         { type: 'START' },
-        { type: 'SOURCES_FOUND', columnCount: 5 },
-        { type: 'HAS_LOW_CONFIDENCE', classified: 5, lowCount: 2 },
+        { type: 'INSPECTION_COMPLETE', fileCount: 5 },
+        { type: 'NEEDS_CONFIRMATION', resolved: 5, unconfirmedCount: 2 },
         { type: 'CONFIRMATION_TIMEOUT' },
       ])
       expect(stateString(snap.value)).toBe('failed')
@@ -225,10 +225,10 @@ describe('agent machine', () => {
     it('validating → failed on system error', () => {
       const snap = run([
         { type: 'START' },
-        { type: 'SOURCES_FOUND', columnCount: 5 },
-        { type: 'ALL_CLASSIFIED_HIGH', classified: 5 },
-        { type: 'MAPPINGS_READY' },
-        { type: 'CONFIG_WRITTEN' },
+        { type: 'INSPECTION_COMPLETE', fileCount: 5 },
+        { type: 'STRUCTURE_DETERMINED', resolved: 5 },
+        { type: 'METADATA_COMPLETE' },
+        { type: 'ARCHIVE_GENERATED' },
         { type: 'VALIDATION_ERROR' },
       ])
       expect(stateString(snap.value)).toBe('failed')
@@ -241,15 +241,15 @@ describe('agent machine', () => {
       expect(stateString(snap.value)).toBe('failed')
     })
 
-    it('CANCEL in collecting → failed', () => {
+    it('CANCEL in inspecting → failed', () => {
       const snap = run([{ type: 'START' }, { type: 'CANCEL' }])
       expect(stateString(snap.value)).toBe('failed')
     })
 
-    it('CANCEL in classifying → failed', () => {
+    it('CANCEL in structuring → failed', () => {
       const snap = run([
         { type: 'START' },
-        { type: 'SOURCES_FOUND', columnCount: 5 },
+        { type: 'INSPECTION_COMPLETE', fileCount: 5 },
         { type: 'CANCEL' },
       ])
       expect(stateString(snap.value)).toBe('failed')
@@ -258,18 +258,18 @@ describe('agent machine', () => {
     it('CANCEL in confirming → failed', () => {
       const snap = run([
         { type: 'START' },
-        { type: 'SOURCES_FOUND', columnCount: 5 },
-        { type: 'HAS_LOW_CONFIDENCE', classified: 5, lowCount: 2 },
+        { type: 'INSPECTION_COMPLETE', fileCount: 5 },
+        { type: 'NEEDS_CONFIRMATION', resolved: 5, unconfirmedCount: 2 },
         { type: 'CANCEL' },
       ])
       expect(stateString(snap.value)).toBe('failed')
     })
 
-    it('CANCEL in mapping → failed', () => {
+    it('CANCEL in gathering → failed', () => {
       const snap = run([
         { type: 'START' },
-        { type: 'SOURCES_FOUND', columnCount: 5 },
-        { type: 'ALL_CLASSIFIED_HIGH', classified: 5 },
+        { type: 'INSPECTION_COMPLETE', fileCount: 5 },
+        { type: 'STRUCTURE_DETERMINED', resolved: 5 },
         { type: 'CANCEL' },
       ])
       expect(stateString(snap.value)).toBe('failed')
@@ -278,9 +278,9 @@ describe('agent machine', () => {
     it('CANCEL in generating → failed', () => {
       const snap = run([
         { type: 'START' },
-        { type: 'SOURCES_FOUND', columnCount: 5 },
-        { type: 'ALL_CLASSIFIED_HIGH', classified: 5 },
-        { type: 'MAPPINGS_READY' },
+        { type: 'INSPECTION_COMPLETE', fileCount: 5 },
+        { type: 'STRUCTURE_DETERMINED', resolved: 5 },
+        { type: 'METADATA_COMPLETE' },
         { type: 'CANCEL' },
       ])
       expect(stateString(snap.value)).toBe('failed')
@@ -289,10 +289,10 @@ describe('agent machine', () => {
     it('CANCEL in validating → failed', () => {
       const snap = run([
         { type: 'START' },
-        { type: 'SOURCES_FOUND', columnCount: 5 },
-        { type: 'ALL_CLASSIFIED_HIGH', classified: 5 },
-        { type: 'MAPPINGS_READY' },
-        { type: 'CONFIG_WRITTEN' },
+        { type: 'INSPECTION_COMPLETE', fileCount: 5 },
+        { type: 'STRUCTURE_DETERMINED', resolved: 5 },
+        { type: 'METADATA_COMPLETE' },
+        { type: 'ARCHIVE_GENERATED' },
         { type: 'CANCEL' },
       ])
       expect(stateString(snap.value)).toBe('failed')
@@ -301,10 +301,10 @@ describe('agent machine', () => {
     it('CANCEL in revising → failed', () => {
       const snap = run([
         { type: 'START' },
-        { type: 'SOURCES_FOUND', columnCount: 5 },
-        { type: 'ALL_CLASSIFIED_HIGH', classified: 5 },
-        { type: 'MAPPINGS_READY' },
-        { type: 'CONFIG_WRITTEN' },
+        { type: 'INSPECTION_COMPLETE', fileCount: 5 },
+        { type: 'STRUCTURE_DETERMINED', resolved: 5 },
+        { type: 'METADATA_COMPLETE' },
+        { type: 'ARCHIVE_GENERATED' },
         {
           type: 'VALIDATION_FAIL',
           violationCount: 3,
@@ -318,33 +318,33 @@ describe('agent machine', () => {
   })
 
   describe('event absorption', () => {
-    it('VALIDATION_PASS is absorbed in classifying', () => {
+    it('VALIDATION_PASS is absorbed in structuring', () => {
       const snap = run([
         { type: 'START' },
-        { type: 'SOURCES_FOUND', columnCount: 5 },
+        { type: 'INSPECTION_COMPLETE', fileCount: 5 },
         { type: 'VALIDATION_PASS' },
       ])
-      expect(stateString(snap.value)).toBe('classifying')
+      expect(stateString(snap.value)).toBe('structuring')
     })
 
-    it('SOURCES_FOUND is absorbed in mapping', () => {
+    it('INSPECTION_COMPLETE is absorbed in gathering', () => {
       const snap = run([
         { type: 'START' },
-        { type: 'SOURCES_FOUND', columnCount: 5 },
-        { type: 'ALL_CLASSIFIED_HIGH', classified: 5 },
-        { type: 'SOURCES_FOUND', columnCount: 10 },
+        { type: 'INSPECTION_COMPLETE', fileCount: 5 },
+        { type: 'STRUCTURE_DETERMINED', resolved: 5 },
+        { type: 'INSPECTION_COMPLETE', fileCount: 10 },
       ])
-      expect(stateString(snap.value)).toBe('mapping')
-      expect(snap.context.columnsTotal).toBe(5)
+      expect(stateString(snap.value)).toBe('gathering')
+      expect(snap.context.filesTotal).toBe(5)
     })
 
     it('START is absorbed in validating', () => {
       const snap = run([
         { type: 'START' },
-        { type: 'SOURCES_FOUND', columnCount: 5 },
-        { type: 'ALL_CLASSIFIED_HIGH', classified: 5 },
-        { type: 'MAPPINGS_READY' },
-        { type: 'CONFIG_WRITTEN' },
+        { type: 'INSPECTION_COMPLETE', fileCount: 5 },
+        { type: 'STRUCTURE_DETERMINED', resolved: 5 },
+        { type: 'METADATA_COMPLETE' },
+        { type: 'ARCHIVE_GENERATED' },
         { type: 'START' },
       ])
       expect(stateString(snap.value)).toBe('validating')

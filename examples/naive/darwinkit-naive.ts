@@ -1,4 +1,4 @@
-// darwinkit-naive.ts — A naive DarwinKit configuration agent
+// darwinkit-naive.ts — A naive Darwin Core Archive packaging agent
 // Companion artifact for the "Structural Guardrails for LLM-Generated Code" series
 // Demonstrates the fragilities that structural guardrail patterns eliminate.
 
@@ -12,11 +12,9 @@ type Config = {
   budgetLimit: number;
   sourceDir: string;
   outputDir: string;
-  standard: string;
   tools: {
     fileRead?: { enabled: boolean };
-    shell?: { enabled: boolean; allowedCommands: string[] };
-    fileWrite?: { enabled: boolean };
+    archiveWrite?: { enabled: boolean };
     userPrompt?: { enabled: boolean };
   };
 };
@@ -40,7 +38,7 @@ type ToolResult = {
 
 // ─── Config Loading ─────────────────────────────────────────────────
 
-// BUG: Validator doesn't check tool sub-objects, sourceDir, outputDir, or standard.
+// BUG: Validator doesn't check tool sub-objects, sourceDir, or outputDir.
 // Type and validator disagree — the type says sourceDir exists, but the validator
 // doesn't verify it. loadConfig casts with `as Config`, creating a lie.
 function validateConfig(input: unknown): boolean {
@@ -65,7 +63,7 @@ function loadConfig(path: string): Config {
 
 // ─── LLM Client ────────────────────────────────────────────────────
 
-const SYSTEM_PROMPT = `You are a biodiversity data specialist. You help scientists map CSV columns to Darwin Core terms by producing darwinkit.yaml configuration files. Classify each column semantically, determine the appropriate Darwin Core term, and generate a valid configuration.`;
+const SYSTEM_PROMPT = `You are a biodiversity data specialist. You help scientists package validated Darwin Core CSV files into Darwin Core Archive (DwC-A) format. For each dataset, determine the archive structure (Occurrence core or Event core, with extensions), infer metadata (geographic bounding box, temporal extent, taxonomic coverage) from the data, gather additional metadata from the user (abstract, methods, keywords), generate EML XML and meta.xml, and assemble the archive zip.`;
 
 const TOOLS = [
   {
@@ -86,23 +84,8 @@ const TOOLS = [
   {
     type: "function",
     function: {
-      name: "shell",
-      description: "Execute a shell command",
-      parameters: {
-        type: "object",
-        properties: {
-          command: { type: "string", description: "The command to run" },
-          args: { type: "array", items: { type: "string" }, description: "Command arguments" },
-        },
-        required: ["command"],
-      },
-    },
-  },
-  {
-    type: "function",
-    function: {
-      name: "fileWrite",
-      description: "Write content to a file in the output directory",
+      name: "archiveWrite",
+      description: "Write an archive artifact (meta.xml, eml.xml, or zip) to the output directory",
       parameters: {
         type: "object",
         properties: {
@@ -179,8 +162,7 @@ async function callLLM(
 // ─── Tool Implementations ───────────────────────────────────────────
 
 // BUG: No capability restriction. fileRead can read ANY file, not just source directory.
-// shell can run ANY command, not just allowed ones.
-// fileWrite can write ANYWHERE, not just output directory.
+// archiveWrite can write ANYWHERE, not just output directory.
 function fileRead(args: Record<string, unknown>, _config: Config): ToolResult {
   const path = String(args.path);
   try {
@@ -194,25 +176,8 @@ function fileRead(args: Record<string, unknown>, _config: Config): ToolResult {
   }
 }
 
-// BUG: No command allowlist enforcement. The LLM can run arbitrary commands.
-function shell(args: Record<string, unknown>, _config: Config): ToolResult {
-  const command = String(args.command);
-  const cmdArgs = (args.args as string[]) || [];
-  try {
-    const result = new Deno.Command(command, { args: cmdArgs }).outputSync();
-    const stdout = new TextDecoder().decode(result.stdout);
-    const stderr = new TextDecoder().decode(result.stderr);
-    if (result.code !== 0) {
-      return { ok: false, error: `Exit code ${result.code}: ${stderr}` };
-    }
-    return { ok: true, data: stdout };
-  } catch (err) {
-    return { ok: false, error: (err as Error).message };
-  }
-}
-
 // BUG: No output directory scoping. Can write to any path.
-function fileWrite(args: Record<string, unknown>, _config: Config): ToolResult {
+function archiveWrite(args: Record<string, unknown>, _config: Config): ToolResult {
   const path = String(args.path);
   const content = String(args.content);
   try {
@@ -225,9 +190,10 @@ function fileWrite(args: Record<string, unknown>, _config: Config): ToolResult {
 
 // BUG: Auto-confirms everything. No actual user interaction.
 // The naive implementation has no way to ask the user gap-filling questions
-// like "this column is labeled 'sp_code' — is that a species code or a
-// sample point?" It can only auto-confirm, and even that is skipped in
-// practice because nothing forces the agent to call this tool.
+// like "is this bounding box correct? It includes coordinates at [0,0]"
+// or "the temporal extent spans 1850–2024 — is that expected?" It can only
+// auto-confirm, and even that is skipped in practice because nothing forces
+// the agent to call this tool.
 function userPrompt(args: Record<string, unknown>, _config: Config): ToolResult {
   const question = String(args.question);
   console.log(`[Auto-confirmed] ${question}`);
@@ -236,25 +202,23 @@ function userPrompt(args: Record<string, unknown>, _config: Config): ToolResult 
 
 // ─── Tool Dispatch ──────────────────────────────────────────────────
 
-// BUG: Permission check only on fileWrite. fileRead and shell have no restrictions.
+// BUG: Permission check only on archiveWrite. fileRead has no restrictions.
 // All errors are generic strings — no structured error types.
 function dispatchTool(
   name: string,
   args: Record<string, unknown>,
   config: Config,
 ): ToolResult {
-  if (name === "fileWrite" && !config.tools.fileWrite?.enabled) {
-    return { ok: false, error: "fileWrite is disabled" };
+  if (name === "archiveWrite" && !config.tools.archiveWrite?.enabled) {
+    return { ok: false, error: "archiveWrite is disabled" };
   }
 
   try {
     switch (name) {
       case "fileRead":
         return fileRead(args, config);
-      case "shell":
-        return shell(args, config);
-      case "fileWrite":
-        return fileWrite(args, config);
+      case "archiveWrite":
+        return archiveWrite(args, config);
       case "userPrompt":
         return userPrompt(args, config);
       default:
@@ -268,7 +232,7 @@ function dispatchTool(
 // ─── Stall Detection ────────────────────────────────────────────────
 
 // BUG: Checks if the last 3 tool calls are identical. Doesn't detect
-// revision loops, oscillation, or stagnation in validation results.
+// revision loops, oscillation, or stagnation in EML validation results.
 function isStuck(messages: Message[]): boolean {
   const recentToolCalls = messages
     .filter((m): m is Extract<Message, { toolCall: unknown }> => "toolCall" in m)
@@ -280,56 +244,80 @@ function isStuck(messages: Message[]): boolean {
   return recentToolCalls.every((tc) => JSON.stringify(tc.toolCall) === first);
 }
 
+// ─── Pre-Turn Pipeline ──────────────────────────────────────────────
+
+// Same concerns as the inline checks, extracted into named stages.
+// Each stage can be replaced independently as we improve the harness.
+
+type CheckResult = { continue: true } | { continue: false; reason: string };
+
+// BUG: Can split related messages (tool call from its result).
+// Doesn't know which messages carry proof of user metadata decisions.
+function compactContext(messages: Message[], _config: Config): CheckResult {
+  if (messages.length <= 30) return { continue: true };
+  const trimmed = [messages[0], ...messages.slice(-20)];
+  messages.length = 0;
+  messages.push(...trimmed);
+  console.log(`Trimmed to ${messages.length} messages`);
+  return { continue: true };
+}
+
+// BUG: Uses rough chars/4 heuristic. Doesn't track actual token usage.
+function checkBudget(messages: Message[], config: Config): CheckResult {
+  const tokenEstimate = messages.reduce((sum, m) => {
+    if ("content" in m) return sum + (m as { content: string }).content.length / 4;
+    if ("toolCall" in m)
+      return sum + JSON.stringify((m as { toolCall: unknown }).toolCall).length / 4;
+    if ("result" in m) return sum + (m as { result: string }).result.length / 4;
+    return sum;
+  }, 0);
+  if (tokenEstimate > config.budgetLimit) {
+    return {
+      continue: false,
+      reason: `Budget exceeded (${Math.ceil(tokenEstimate)} estimated tokens).`,
+    };
+  }
+  return { continue: true };
+}
+
+// BUG: Only checks for 3 identical consecutive tool calls.
+// Doesn't detect EML revision loops, oscillation, or stagnation.
+function detectStall(messages: Message[], _config: Config): CheckResult {
+  if (isStuck(messages)) {
+    return { continue: false, reason: "Agent stuck — could not complete archive packaging." };
+  }
+  return { continue: true };
+}
+
+const preTurnChecks = [compactContext, checkBudget, detectStall];
+
 // ─── Main Loop ──────────────────────────────────────────────────────
 
 // BUG: No protocol enforcement. The agent can:
-// - Generate a config without classifying columns first
-// - Skip user confirmation on low-confidence mappings
-// - Finalize without running validation
+// - Generate an archive without determining structure first
+// - Skip user confirmation on inferred metadata
+// - Finalize without validating EML
 // - Write to arbitrary paths
 // The "workflow" is whatever the LLM decides to do.
 async function runAgent(config: Config): Promise<string> {
   const messages: Message[] = [
     {
       role: "user",
-      content: `Examine the data files in ${config.sourceDir} and create a darwinkit.yaml configuration file that maps their columns to Darwin Core terms. Use the ${config.standard} standard. Write the configuration to ${config.outputDir}/darwinkit.yaml. After writing, validate it using the DarwinKit CLI. If validation fails, revise and try again.`,
+      content: `Examine the data files in ${config.sourceDir} and package them as a Darwin Core Archive. Determine whether this is an Occurrence core or Event core archive. Infer geographic coverage, temporal extent, and taxonomic coverage from the data. Ask me for an abstract, methods description, and keywords. Generate eml.xml and meta.xml, then assemble the archive zip in ${config.outputDir}. Validate the EML against the schema. If validation fails, revise and try again.`,
     },
   ];
 
   let iterations = 0;
-  let totalTokens = 0;
 
   while (iterations < config.maxRevisions) {
     console.log(`\n--- Iteration ${iterations + 1} ---`);
 
-    // Stall detection — bolted on, same fragility as the generic harness
-    if (isStuck(messages)) {
-      console.log("Agent appears stuck. Stopping.");
-      return "Agent stuck — could not complete configuration.";
-    }
-
-    // Budget enforcement — rough estimate, scattered
-    const tokenEstimate = messages.reduce((sum, m) => {
-      if ("content" in m) return sum + (m as { content: string }).content.length / 4;
-      if ("toolCall" in m) return sum + JSON.stringify((m as { toolCall: unknown }).toolCall).length / 4;
-      if ("result" in m) return sum + (m as { result: string }).result.length / 4;
-      return sum;
-    }, 0);
-
-    if (tokenEstimate > config.budgetLimit) {
-      return `Budget exceeded (${Math.ceil(tokenEstimate)} estimated tokens).`;
-    }
-
-    // Context trimming — can split related messages
-    if (messages.length > 30) {
-      const trimmed = [messages[0], ...messages.slice(-20)];
-      messages.length = 0;
-      messages.push(...trimmed);
-      console.log(`Trimmed to ${messages.length} messages`);
+    for (const check of preTurnChecks) {
+      const result = check(messages, config);
+      if (!result.continue) return result.reason;
     }
 
     const response = await callLLM(messages, config);
-    totalTokens += (response as { content?: string }).content?.length ?? 100;
 
     if (response.type === "text") {
       console.log("\nAgent produced final answer.");
