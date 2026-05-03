@@ -1029,6 +1029,7 @@
       "dependencies": [
         "npm:@catppuccin/vitepress@~0.1.2",
         "npm:@types/turndown@^5.0.5",
+        "npm:feed@^5.2.0",
         "npm:turndown@^7.2.1",
         "npm:vitepress@2.0.0-alpha.12",
         "npm:vue@^3.5.20"
