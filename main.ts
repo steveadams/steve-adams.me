@@ -8,6 +8,7 @@ Deno.serve(async (req) => {
     fsRoot: "dist",
     urlRoot: "",
     showDirListing: false,
+    showDotfiles: true,
     enableCors: true,
     quiet: true,
   });
