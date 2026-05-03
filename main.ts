@@ -1,13 +1,7 @@
 import { serveDir } from "@std/http";
 
 Deno.serve(async (req) => {
-  const url = new URL(req.url);
-  const pathname = url.pathname;
-
-  if (pathname === "/resume") {
-    url.pathname = "/resume.html";
-    return Response.redirect(url, 301);
-  }
+  const pathname = new URL(req.url).pathname;
 
   // Serve static files
   const response = await serveDir(req, {
